@@ -841,3 +841,79 @@ URL 우선이라 카톡으로 받은 링크는 의도대로 동작. 직접 진�
 - **계정 기반 서버 동기화** — 계정/로그인 도입 시점에. 마이그레이션 단순(string)
 - **즐겨찾기와 홈 통합** — 홈=1개, 즐겨찾기=N개 로 별개 개념. 사용 데이터 본 뒤
   통합 검토
+
+---
+
+## 2026-04-25 — [Stage 8] URL 자동 동기화 제거 — 공유 시점에만 URL 빌드
+
+### 사용자 보고
+
+> "핸드폰에 처음 이 사이트 들어간 다음에, 즐겨찾기로 추가하려면 이미 뒤에
+> 날짜조건 등이 붙어 있는 경우가 있는 것 같아"
+
+핸드폰 브라우저로 사이트 진입 → 사용자가 날짜·학교 몇 번 누르는 사이 URL 이
+실시간으로 `?ymd=...&schoolId=...` 로 갱신됨 → 그 시점에 즐겨찾기 추가하면
+그 날짜·학교가 영구히 박혀, 며칠 뒤 누르면 옛날 페이지가 뜸.
+
+### 진단
+
+`MealView.tsx` 의 useEffect 가 `selectedYmd`/`school.id` 변경마다
+`window.history.replaceState` 로 URL 을 자동 동기화. 공유 가능성을 위한
+의도였지만, 실제로는:
+- 사용자가 사이트 탐색 중에 주소창을 따로 복사하는 일은 거의 없음
+- 즐겨찾기 추가, 핸드폰 공유 시트의 "공유" 옵션 등에서 그 시점의 URL 이
+  의도치 않게 캡처됨
+- OG/메타데이터·API 들은 모두 server-side 결정이라 클라이언트 URL 동기화와
+  완전히 무관 — **잃는 게 없는 동기화**
+
+### 변경
+
+#### `8bca3bf` fix(ui): URL 자동 동기화 제거
+
+**파일 1**: `src/components/MealView.tsx`
+- URL 동기화 useEffect 통째로 삭제
+- 대신 `getShareUrl: () => string` 을 useCallback 으로 정의
+  - `origin + pathname` 부터 깨끗한 base
+  - `selectedYmd` 항상 set
+  - 기본 학교가 아닐 때만 `schoolId` set
+- MealCard 에 `getShareUrl` prop 으로 전달
+
+**파일 2**: `src/components/MealCard.tsx`
+- Props 에 `getShareUrl?: () => string` 추가 (옵션 — 미지정 시 폴백)
+- `handleShare` 의 `new URL(window.location.href) + set('ymd', ymd)` 로직 제거
+- 받은 `getShareUrl()` 을 그대로 share/clipboard 에 사용
+
+### URL 의 의미가 정리됨
+
+| 케이스 | URL 형태 |
+| --- | --- |
+| 직접 진입 / 즐겨찾기 | 깨끗한 `/` |
+| 사용자가 날짜·학교 바꾸는 중 | 주소창 변하지 않음 |
+| 카톡으로 받은 공유 링크 | `?schoolId=X&ymd=Y` 박힘 |
+| 사용자가 공유 버튼 누름 | 그 시점 상태로 URL 빌드 → 공유 |
+
+핸드폰 즐겨찾기 → 깨끗한 `/` → 다음 진입 시 [Stage 7] 의 홈 학교 + 오늘.
+의도대로 자연 동작.
+
+### Stage 7 와의 상호작용
+
+홈 학교 적용 흐름 (`MealView.tsx` mount useEffect) 은 변경 없음:
+- URL 에 schoolId 있으면 우선 (공유 링크 케이스)
+- 없으면 localStorage `homeSchoolId`
+
+이번 변경으로 "URL 에 schoolId 가 박히는 빈도" 가 줄어들 뿐, 흐름 자체는 같음.
+
+### 잃는 것 — 그리고 받아들이는 이유
+
+- **새로고침 시 그날 날짜 유지 안 됨** — 새로고침하면 오늘로 복귀. 단 학교는
+  Stage 7 홈으로 유지라 큰 손실 아님. "오늘 날짜 보기" 가 가장 자주 쓰는
+  케이스
+- **사용자가 탐색 중 주소창 복사** — 이제 그 URL 은 `/` 라 무의미. 대신 공유
+  버튼이 정확한 URL 빌드. 사용 패턴이 한 번 이동 — 더 명확한 감각
+
+### 의도적으로 안 한 것
+
+- **URL 갱신 자체를 완전 제거** — 공유 버튼은 여전히 빌드 필요. 자동 동기화만
+  뺌
+- **서버 redirect 로 URL 정리** — 공유 받는 사람의 URL 망가뜨림. 너무 공격적
+- **Stage 7 흐름 변경** — 그대로
