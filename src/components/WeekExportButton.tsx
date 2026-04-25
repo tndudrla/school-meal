@@ -41,7 +41,9 @@ export default function WeekExportButton({
       const filename = `${schoolName}_${safeRange}.png`;
       const file = new File([blob], filename, { type: 'image/png' });
 
-      // 1. Web Share API — 파일 공유 가능 여부 확인 후 모바일 공유 시트
+      // 1. Web Share API — 파일 공유 가능 여부 확인 후 모바일 공유 시트.
+      //    text 필드로 사이트 주소도 함께 전달 → 카톡에선 이미지 + 본문에
+      //    URL 이 같이 박혀, 받은 사람이 사이트로 진입할 수 있음.
       if (
         typeof navigator !== 'undefined' &&
         navigator.canShare?.({ files: [file] })
@@ -50,6 +52,7 @@ export default function WeekExportButton({
           await navigator.share({
             files: [file],
             title: `${schoolName} 주간 식단표`,
+            text: `${schoolName} ${weekRangeLabel} 주간 식단표\nhttps://school-meal-phi.vercel.app`,
           });
           return;
         } catch (err) {
