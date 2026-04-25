@@ -304,3 +304,99 @@ curl.exe -H "Authorization: Bearer <CRON_SECRET>" \
 - 카톡 OG 디버거(https://developers.kakao.com/tool/clear/og) 갱신 후 카톡 공유
   → 사진 박힌 OG 미리보기 확인
 - 디버그용 `failures` 배열 응답은 동작 안정화 확인 후 제거 가능 (작은 정리)
+
+---
+
+## 2026-04-25 — [Stage 3-2] 운영 점검 + 학교 확장 전 구조 정리
+
+### 배경
+
+Stage 3 미러 파이프라인이 안정화된 시점(이번 주 운영 이슈 두 건 — 수동 삭제 후
+재업로드 미동작, Vercel 60s 타임아웃 — 모두 해결됨)에서, Stage 4(학교 추가) 로
+넘어가기 전에 두 가지를 묶어서 진행:
+
+1. 현재 데이터 흐름을 6개월 후에도 추적 가능하게 기록 (이 섹션)
+2. 단 하나 남은 구조적 부채 정리 (`CHONGGYE_TARGET` 흡수)
+
+### 사진은 어디서 오는가
+
+**결론**: Supabase Storage 미러를 **우선** 조회, 미러에 없으면 학교 홈페이지에서
+**직접 스크래핑** 으로 폴백. OG 이미지는 미러 only(학교 직접 폴백 없음).
+
+| 호출 경로 | 우선 | 폴백 | 근거 |
+| --- | --- | --- | --- |
+| 앱 (`/api/meal/photo`) | Supabase 미러 | 학교 직접 | `src/app/api/meal/photo/route.ts:34-49` |
+| OG (`/api/og`) | Supabase 미러 | 도시락 이모지 🍱 | `src/app/api/og/route.tsx:31` |
+
+흐름:
+- 브라우저 `MealView` 가 `/api/meal/photo?ymd=...&schoolId=...` 호출
+  (`src/components/MealView.tsx:105-107`)
+- 서버 핸들러가 `getMirroredPhotoUrl()` 먼저 시도 → hit 이면 `source:'mirror'`
+  로 즉시 반환 (1h CDN 캐시)
+- 미러 miss 시 `fetchPhotoForDate()` 가 학교 홈페이지에 붙어 `source:'origin'` 반환
+- 둘 다 실패하면 `photoUrl: null` + 1분 캐시 (학교 회복 즉시 반영)
+
+OG 가 학교 직접 폴백을 의도적으로 안 가는 이유는 [Stage 1] 섹션 참조 — 학교 서버
+27초 응답 → 카톡 OG 봇 타임아웃 → 빈 미리보기가 카카오 캐시에 박히는 사고의 근본 처방.
+
+미러 활성화 전제: `SUPABASE_SERVICE_ROLE_KEY` 환경변수가 설정돼야 함
+(`src/lib/photoMirror.ts:10-11`). 미설정이면 모든 미러 함수가 no-op → 항상 학교
+직접 경로로 떨어짐. 현재 cron 응답에 `mirrorEnabled:true` 가 보이므로 프로덕션은
+ON 상태.
+
+### 급식 정보(메뉴·칼로리)는 하루 몇 번 / 언제 / 어떻게
+
+**결론**: cron 으로 **하루 2회 워밍** + 사용자 요청 시점. 데이터 소스는 NEIS open
+API. 두 단계 캐시(Next.js fetch 캐시 1h + Vercel CDN 1h) 로 NEIS 실호출은 거의 흡수.
+
+cron 스케줄 — `vercel.json:4-5`:
+- `0 23 * * *` UTC = **KST 오전 8시**
+- `0 6  * * *` UTC = **KST 오후 3시**
+- `maxDuration: 60` (Vercel Hobby 한도, `src/app/api/cron/refresh/route.ts`)
+
+cron 한 번에 학교별로 하는 일:
+1. NEIS 메뉴(오늘+내일) 미리 fetch → Next.js 캐시 워밍
+2. 학교 홈페이지 사진 URL 수집
+3. Supabase 미러 업로드 (`mirrorWeekForSchool`)
+4. 7일 지난 사진 prune (`pruneOldPhotos`, 슬라이딩 윈도우)
+
+사용자 요청 시 NEIS 실호출은 두 단계 캐시로 거의 일어나지 않음:
+- Next.js 데이터 캐시: `fetch(..., { next: { revalidate: 3600 } })`
+  (`src/lib/neis.ts:30`) — 같은 (학교, ymd) 조합은 1시간 동안 캐시값 반환
+- Vercel CDN: 응답에 `Cache-Control: s-maxage=3600` — 엣지에서 한 번 더 흡수
+
+→ **NEIS 가 실제로 호출되는 건 학교·날짜 조합당 하루 2~3회 수준** (cron 두 번 +
+첫 트래픽 한 번). 사용자 트래픽이 늘어도 NEIS 부하는 거의 그대로.
+
+### 변경 — 학교 확장 전 구조 정리
+
+**파일**:
+- `src/lib/schoolScraper.ts`
+- `src/lib/schools.ts`
+
+**문제**: `CHONGGYE_TARGET` 상수가 `schoolScraper.ts` 안에 정의돼 있고
+`schools.ts` 가 import 해 사용하는 구조. 새 학교를 추가하려면 두 파일을 동시에
+건드려야 했다. "새 학교 = `SCHOOLS` 객체에 한 항목 등록" 원칙([Stage 2] 에서 세움)
+에 어긋나는 마지막 부채.
+
+**조치**:
+- `schoolScraper.ts` 의 `CHONGGYE_TARGET` export 삭제 — 이 파일은 이제 학교별 정보를
+  모르는 순수 스크래핑 유틸로 정리됨
+- `schools.ts` 에서 `scrape:` 항목을 인라인 객체 리터럴(`{ host, sysId, mi }`) 로 정의
+
+이후 새 학교 추가 절차: `SCHOOLS` 객체에 한 항목만 등록하면 끝. 다른 파일을
+건드리지 않음.
+
+### 의도적으로 안 한 것
+
+- `src/config/schools/` 디렉터리 분리 — 학교 10개 넘어가면 검토. 지금은 과한 면도
+- Supabase 학교 메타 테이블 마이그레이션 — Stage 5+ 영역
+- `MirrorResult.failures` 디버그 필드 제거 — 이번 주 운영 이슈 두 건의 진단에
+  실제로 도움됐음. 1~2주 무사고 운영 후 별도 PR 로 정리
+
+### 검증
+
+- `npx tsc --noEmit` 통과
+- 기존 OG/`/api/meal`/cron 동작은 동일 (`CHONGGYE_TARGET` 의 값은 그대로,
+  위치만 이동)
+- `grep -r CHONGGYE_TARGET src/` → 0건 (다른 import 처 없음 확인)
