@@ -78,6 +78,12 @@ export async function generateMetadata({
 export default async function HomePage({ searchParams }: PageProps) {
   const { ymd, schoolId } = await searchParams;
   const initialYmd = ymd && /^\d{8}$/.test(ymd) ? ymd : undefined;
-  const school = getSchool(schoolId);
-  return <MealView initialYmd={initialYmd} schoolId={school.id} />;
+  // URL 에 schoolId 가 진짜로 있고 등록된 학교일 때만 prop 으로 넘김.
+  // 없거나 잘못됐으면 undefined → MealView 가 localStorage 의 홈 학교(Stage 7)
+  // 를 적용한다. 여기서 getSchool() 폴백을 그대로 prop 으로 넘기면 항상 청계초가
+  // 박혀 홈 학교 분기가 영영 안 동작했음 (Stage 8-2 버그픽스).
+  const validSchoolId = schoolId && getSchool(schoolId).id === schoolId
+    ? schoolId
+    : undefined;
+  return <MealView initialYmd={initialYmd} schoolId={validSchoolId} />;
 }

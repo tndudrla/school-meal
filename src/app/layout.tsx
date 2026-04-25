@@ -5,7 +5,7 @@ import './globals.css';
 // (Stage 8-1 — 즐겨찾기 텍스트에 그날 날짜가 박히던 사고의 처방).
 // 카톡 공유 카드의 풍성한 제목은 page.tsx 의 openGraph.title 가 별도 담당.
 export const metadata: Metadata = {
-  title: '학교 급식 벤치마크',
+  title: '오늘의 급식',
   description: '학교 급식 메뉴와 사진을 한눈에',
 };
 
