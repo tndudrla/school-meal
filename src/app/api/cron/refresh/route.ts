@@ -9,6 +9,10 @@ import {
   pruneOldPhotos,
 } from '@/lib/photoMirror';
 
+// 학교 사진(5MB+) 다운로드가 학교 서버에서 느려 기본 10초 한도로는 부족.
+// Vercel Hobby 플랜의 최대값 60초로 명시.
+export const maxDuration = 60;
+
 /**
  * 주기적으로 NEIS 메뉴 + 학교 홈페이지 사진을 미리 불러와 캐시를 데움.
  * 등록된 모든 학교를 순회한다 (Stage 2). 한 학교 실패는 다른 학교를 막지 않음.

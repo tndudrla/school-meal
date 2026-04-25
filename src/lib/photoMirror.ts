@@ -139,10 +139,13 @@ export async function mirrorWeekForSchool(
         continue;
       }
 
-      // 2. 다운로드 (15초 타임아웃)
+      // 2. 다운로드 (45초 타임아웃)
+      // 청계초 사진 한 장이 5MB+ 이고 학교 서버가 한국 외 리전에서 느림.
+      // Vercel Hobby 함수 최대 60초라 45초까지 허용 (전체 학교 합산 시 여유).
+      // 추후: sharp 로 다운로드 즉시 압축·리사이즈하면 저장량/속도 모두 개선.
       stage = 'download';
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000);
+      const timer = setTimeout(() => ctrl.abort(), 45000);
       let buf: ArrayBuffer;
       try {
         const res = await fetch(sourceUrl, { signal: ctrl.signal });
