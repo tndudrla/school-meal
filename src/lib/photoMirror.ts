@@ -26,6 +26,8 @@ interface MirrorResult {
   failed: number;
   missing: number;
   error?: string;
+  /** 디버그용: 개별 ymd 실패 사유 (성공이 누적되면 제거 가능) */
+  failures?: Array<{ ymd: string; stage: string; message: string }>;
 }
 
 interface PruneResult {
@@ -114,19 +116,23 @@ export async function mirrorWeekForSchool(
     skipped: 0,
     failed: 0,
     missing: 0,
+    failures: [],
   };
 
   for (const [ymd, relPath] of Object.entries(weekMap)) {
     const sourceUrl = toAbsolutePhotoUrl(school.scrape, relPath);
+    let stage = 'init';
 
     try {
       // 1. 기존 행 조회
-      const { data: existing } = await sb
+      stage = 'select-existing';
+      const { data: existing, error: selectError } = await sb
         .from('meal_photos')
         .select('source_url, content_hash, storage_path')
         .eq('school_id', school.id)
         .eq('ymd', ymd)
         .maybeSingle<PhotoRow>();
+      if (selectError) throw selectError;
 
       if (existing && existing.source_url === sourceUrl) {
         result.skipped++;
@@ -134,6 +140,7 @@ export async function mirrorWeekForSchool(
       }
 
       // 2. 다운로드 (15초 타임아웃)
+      stage = 'download';
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 15000);
       let buf: ArrayBuffer;
@@ -146,9 +153,11 @@ export async function mirrorWeekForSchool(
       }
 
       // 3. 해시로 변경 감지
+      stage = 'hash';
       const hash = await sha256Hex(buf);
       if (existing?.content_hash === hash) {
         // 내용 동일, URL 만 바뀜 → DB 만 갱신
+        stage = 'update-source-url';
         await sb
           .from('meal_photos')
           .update({ source_url: sourceUrl })
@@ -158,6 +167,7 @@ export async function mirrorWeekForSchool(
       }
 
       // 4. Storage 업로드 (upsert)
+      stage = 'storage-upload';
       const ext = extFromUrl(sourceUrl);
       const storagePath = `${school.id}/${ymd}.${ext}`;
       const upload = await sb.storage.from(BUCKET).upload(storagePath, buf, {
@@ -167,6 +177,7 @@ export async function mirrorWeekForSchool(
       if (upload.error) throw upload.error;
 
       // 5. DB upsert
+      stage = 'db-upsert';
       const upsert = await sb.from('meal_photos').upsert({
         school_id: school.id,
         ymd,
@@ -178,9 +189,16 @@ export async function mirrorWeekForSchool(
       if (upsert.error) throw upsert.error;
 
       result.uploaded++;
-    } catch {
+    } catch (err) {
       result.failed++;
+      const message = err instanceof Error ? err.message : String(err);
+      result.failures!.push({ ymd, stage, message });
     }
+  }
+
+  // 성공만 있으면 디버그 필드는 제거
+  if (result.failures && result.failures.length === 0) {
+    delete result.failures;
   }
 
   return result;
