@@ -12,7 +12,7 @@ import {
   parseYmd,
   DOW,
 } from '@/lib/utils';
-import { getSchool, DEFAULT_SCHOOL_ID } from '@/lib/schools';
+import { getSchool, DEFAULT_SCHOOL_ID, SCHOOLS } from '@/lib/schools';
 import type { Meal } from '@/types/meal';
 
 interface Props {
@@ -47,6 +47,26 @@ export default function MealView({ initialYmd, schoolId }: Props) {
   const [activeSchoolId, setActiveSchoolId] = useState<string>(
     () => schoolId ?? DEFAULT_SCHOOL_ID
   );
+
+  // URL 에 ?schoolId=... 가 없을 때만 localStorage 의 '홈 학교' 적용.
+  // SSR 결정값(DEFAULT_SCHOOL_ID) 이 첫 paint 에 잠시 보일 수 있지만 mount 직후
+  // 50ms 내 사용자 홈 학교로 덮어씀. URL 에 학교가 명시된 공유 링크는 변경 안 함.
+  useEffect(() => {
+    if (schoolId) return; // URL 우선
+    if (typeof window === 'undefined') return;
+    try {
+      const home = window.localStorage.getItem('homeSchoolId');
+      if (home && SCHOOLS[home]) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setActiveSchoolId(home);
+      }
+    } catch {
+      // localStorage 실패는 무시 — DEFAULT_SCHOOL_ID 그대로
+    }
+    // schoolId 는 첫 진입 결정에만 영향. 이후 변경은 SchoolSwitcher 가 담당.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const school = useMemo(() => getSchool(activeSchoolId), [activeSchoolId]);
   const isDefaultSchool = school.id === DEFAULT_SCHOOL_ID;
 

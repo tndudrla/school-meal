@@ -6,6 +6,7 @@ import { listSchools } from '@/lib/schools';
 import type { SchoolConfig } from '@/lib/schools';
 
 const FAV_KEY = 'favoriteSchoolIds';
+const HOME_KEY = 'homeSchoolId';
 
 interface Props {
   /** 현재 선택된 학교 id */
@@ -25,6 +26,7 @@ interface Props {
 export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
   const [open, setOpen] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [homeSchoolId, setHomeSchoolIdState] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -33,7 +35,7 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
     setMounted(true);
   }, []);
 
-  // mount 시 localStorage 에서 즐겨찾기 로드
+  // mount 시 localStorage 에서 즐겨찾기 + 홈 학교 로드
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
@@ -47,6 +49,8 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
     } catch {
       // 파싱 실패는 무시 — 빈 배열로 시작
     }
+    const home = window.localStorage.getItem(HOME_KEY);
+    if (home) setHomeSchoolIdState(home);
   }, []);
 
   // 모달 열렸을 때 배경 스크롤 잠금
@@ -86,6 +90,22 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
       persistFavorites(favoriteIds.filter((id) => id !== schoolId));
     } else {
       persistFavorites([...favoriteIds, schoolId]);
+    }
+  };
+
+  // 홈 학교 토글: 같은 학교 누르면 해제(null), 다른 학교면 교체.
+  // 다음 직접 진입(URL 에 schoolId 없음) 시 MealView 가 이 값을 읽어 활성 학교 갱신.
+  const toggleHomeSchool = (schoolId: string) => {
+    const next = homeSchoolId === schoolId ? null : schoolId;
+    setHomeSchoolIdState(next);
+    try {
+      if (next) {
+        window.localStorage.setItem(HOME_KEY, next);
+      } else {
+        window.localStorage.removeItem(HOME_KEY);
+      }
+    } catch {
+      // localStorage 실패는 UI 만 갱신하고 무시
     }
   };
 
@@ -219,8 +239,10 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
                               school={school}
                               active={school.id === currentSchoolId}
                               favorite={favoriteIds.includes(school.id)}
+                              home={school.id === homeSchoolId}
                               onPick={() => handlePick(school.id)}
                               onToggleFav={() => toggleFavorite(school.id)}
+                              onToggleHome={() => toggleHomeSchool(school.id)}
                             />
                           ))}
                         </ul>
@@ -245,8 +267,10 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
                                 school={school}
                                 active={school.id === currentSchoolId}
                                 favorite
+                                home={school.id === homeSchoolId}
                                 onPick={() => handlePick(school.id)}
                                 onToggleFav={() => toggleFavorite(school.id)}
+                                onToggleHome={() => toggleHomeSchool(school.id)}
                               />
                             ))}
                           </ul>
@@ -269,8 +293,10 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
                                 school={school}
                                 active={school.id === currentSchoolId}
                                 favorite={favoriteIds.includes(school.id)}
+                                home={school.id === homeSchoolId}
                                 onPick={() => handlePick(school.id)}
                                 onToggleFav={() => toggleFavorite(school.id)}
+                                onToggleHome={() => toggleHomeSchool(school.id)}
                               />
                             ))}
                           </ul>
@@ -292,11 +318,21 @@ interface RowProps {
   school: SchoolConfig;
   active: boolean;
   favorite: boolean;
+  home: boolean;
   onPick: () => void;
   onToggleFav: () => void;
+  onToggleHome: () => void;
 }
 
-function SchoolRow({ school, active, favorite, onPick, onToggleFav }: RowProps) {
+function SchoolRow({
+  school,
+  active,
+  favorite,
+  home,
+  onPick,
+  onToggleFav,
+  onToggleHome,
+}: RowProps) {
   return (
     <li
       className={`flex items-center justify-between rounded-2xl border-2 px-4 py-3 transition-colors ${
@@ -308,9 +344,10 @@ function SchoolRow({ school, active, favorite, onPick, onToggleFav }: RowProps) 
       <button
         type="button"
         onClick={onPick}
-        className="flex-1 text-left flex flex-col"
+        className="flex-1 text-left flex flex-col min-w-0"
       >
-        <span className="font-['Gaegu'] text-lg font-bold leading-snug">
+        <span className="font-['Gaegu'] text-lg font-bold leading-snug truncate">
+          {home && <span className="mr-1">🏠</span>}
           {school.name}
         </span>
         <span
@@ -318,6 +355,24 @@ function SchoolRow({ school, active, favorite, onPick, onToggleFav }: RowProps) 
         >
           {school.region}
         </span>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleHome();
+        }}
+        aria-label={home ? '기본 학교 해제' : '기본 학교로 설정'}
+        title={home ? '기본 학교 해제' : '기본 학교로 설정'}
+        className={`w-10 h-10 ml-2 flex items-center justify-center rounded-full text-lg transition-transform hover:scale-110 ${
+          home
+            ? 'bg-orange-300 text-stone-800'
+            : active
+              ? 'bg-orange-400 text-orange-100'
+              : 'bg-amber-100 text-stone-400'
+        }`}
+      >
+        🏠
       </button>
       <button
         type="button"
