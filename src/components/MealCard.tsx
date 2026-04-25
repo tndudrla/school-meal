@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { Meal } from '@/types/meal';
 import { DOW, parseYmd } from '@/lib/utils';
+import { formatAllergyNames } from '@/lib/allergies';
 
 interface Props {
   ymd: string;
@@ -39,7 +40,7 @@ export default function MealCard({
 }: Props) {
   const date = parseYmd(ymd);
   const dateLabel = `${date.getMonth() + 1}월 ${date.getDate()}일 (${DOW[date.getDay()]})`;
-  const [shareToast, setShareToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   async function handleShare() {
     if (typeof window === 'undefined') return;
@@ -71,11 +72,11 @@ export default function MealCard({
     // 2. 클립보드 폴백
     try {
       await navigator.clipboard.writeText(shareUrl);
-      setShareToast('링크가 복사됐어요!');
+      setToast('링크가 복사됐어요!');
     } catch {
-      setShareToast('복사에 실패했어요. 주소를 직접 복사해주세요.');
+      setToast('복사에 실패했어요. 주소를 직접 복사해주세요.');
     }
-    setTimeout(() => setShareToast(null), 2000);
+    setTimeout(() => setToast(null), 2000);
   }
 
   if (!meal) {
@@ -147,12 +148,6 @@ export default function MealCard({
           </svg>
         </button>
 
-        {/* 토스트 메시지 (클립보드 폴백 시) */}
-        {shareToast && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-stone-900/85 text-amber-50 text-xs px-3 py-1.5 rounded-full font-['Gaegu']">
-            {shareToast}
-          </div>
-        )}
       </div>
 
       <div className="p-5">
@@ -171,15 +166,34 @@ export default function MealCard({
               <span>
                 {dish.name}
                 {dish.allergies.length > 0 && (
-                  <span className="text-xs text-stone-500 opacity-60 ml-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setToast(formatAllergyNames(dish.allergies));
+                      setTimeout(() => setToast(null), 2500);
+                    }}
+                    className="text-xs text-stone-500 opacity-60 ml-1 underline decoration-dotted underline-offset-2 hover:opacity-100 transition-opacity"
+                    aria-label={`알레르기: ${formatAllergyNames(dish.allergies)}`}
+                  >
                     ({dish.allergies.join('.')})
-                  </span>
+                  </button>
                 )}
               </span>
             </li>
           ))}
         </ul>
       </div>
+
+      {/* 토스트 — 알레르기 이름 풀이 / 공유 클립보드 폴백 공용. 화면 하단
+          고정이라 카드의 어느 부분을 누르든 같은 위치에 뜸 */}
+      {toast && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900/90 text-amber-50 text-sm px-4 py-2 rounded-full font-['Gaegu'] shadow-lg z-50 max-w-[90vw] text-center animate-[fadeIn_0.15s_ease-out]"
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
