@@ -400,3 +400,74 @@ cron 한 번에 학교별로 하는 일:
 - 기존 OG/`/api/meal`/cron 동작은 동일 (`CHONGGYE_TARGET` 의 값은 그대로,
   위치만 이동)
 - `grep -r CHONGGYE_TARGET src/` → 0건 (다른 import 처 없음 확인)
+
+---
+
+## 2026-04-25 — [Stage 3-3] OG 307 redirect 로 카톡 사진 카드 부활
+
+### 문제
+
+카톡으로 청계초 4월 22일(수, 사진 있는 날) URL 공유 시, 미리보기에 사진이
+없고 이모지 카드만 표시. 운영 OG 라우트를 직접 까보니:
+
+```
+$ curl -I "https://school-meal-phi.vercel.app/api/og?ymd=20260422&schoolId=chonggye"
+HTTP/1.1 500 Internal Server Error
+```
+
+원인 추정: `next/og` 의 `ImageResponse` 가 JSX 안의 `<img src="https://...supabase.co/...">`
+를 만나면 서버 사이드에서 그 URL 을 fetch·디코딩·재인코딩하는데, 이 경로가
+운영에서 일관되게 동작하지 않음. Stage 1 의 학교 직접 URL 27초 사고와 같은
+부류 — 외부 이미지를 OG 빌드 안에서 합성하는 모델 자체가 SPOF.
+
+또한 사용자 의도는 "사진 있을 때는 이미지·텍스트를 합친 카드가 아니라 사진
+풀카드". 카톡은 본문 텍스트로 학교·메뉴를 이미 보여주므로 OG 에서 텍스트
+중복은 가독성만 떨어뜨림.
+
+### 변경
+
+**파일**: `src/app/api/og/route.tsx`
+
+흐름을 두 갈래로 단순화:
+
+- 사진 있는 날: `ImageResponse` 를 만들지 않고 미러 URL 로 **307 redirect**.
+  카톡/SNS OG 봇이 Supabase CDN 이미지를 그대로 카드로 표시 → 사진 풀카드.
+- 사진 없는 날: 기존 메뉴 텍스트 카드 ImageResponse 폴백 유지 (좌측은 항상
+  이모지로 단순화 — 분기 사라짐).
+
+```tsx
+const mirroredPhotoUrl = await getMirroredPhotoUrl(school.id, ymd).catch(() => null);
+if (mirroredPhotoUrl) {
+  return new Response(null, {
+    status: 307,
+    headers: {
+      Location: mirroredPhotoUrl,
+      'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+    },
+  });
+}
+```
+
+부수 효과: 사진 있는 날엔 NEIS API 도 호출 안 함 → 응답 더 빨라짐.
+
+### 검증
+
+```
+$ curl.exe -I "https://school-meal-phi.vercel.app/api/og?ymd=20260422&schoolId=chonggye"
+HTTP/1.1 307 Temporary Redirect
+Location: https://...supabase.co/storage/v1/object/public/meal-photos/chonggye/20260422.jpg
+```
+
+카카오 OG 디버거(`https://developers.kakao.com/tool/clear/og`) 에서 캐시 초기화
+후 미리보기 → 사진 풀카드 정상 렌더링 확인.
+
+채팅창에 이미 박힌 옛 OG 카드는 **카톡 클라이언트 자체 캐시** 라 즉시 갱신
+안 됨. 새 채팅방에 공유하거나 URL 에 더미 쿼리(`&v=1`) 를 붙여 새 URL 로
+보내면 새 OG 로 박힘.
+
+### 비고
+
+- redirect 응답의 `Cache-Control` 은 Vercel 이 `public` 으로 덮어쓰는 것으로
+  관찰. 그래도 라우트 내부가 가벼워(미러 1회 조회 + 307) 운영상 부담 없음.
+- 사진 없는 학교/날짜의 ImageResponse 폴백 경로는 변경 없음 — 카톡 캐시
+  무결성 유지.
