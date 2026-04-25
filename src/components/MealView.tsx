@@ -11,17 +11,14 @@ import {
   parseYmd,
   DOW,
 } from '@/lib/utils';
+import { getSchool, DEFAULT_SCHOOL_ID } from '@/lib/schools';
 import type { Meal } from '@/types/meal';
 
-// 청계초등학교 (경기 과천시)
-const SCHOOL = {
-  atptCode: 'J10',
-  schoolCode: '7569109',
-  name: '청계초등학교',
-};
-
 interface Props {
-  initialYmd?: string; // 공유 URL 등에서 전달받은 초기 날짜
+  /** 공유 URL 등에서 전달받은 초기 날짜 */
+  initialYmd?: string;
+  /** 표시할 학교 id. 미지정 시 기본 학교(청계초). */
+  schoolId?: string;
 }
 
 // 초기 날짜 → 적절한 weekOffset 역산.
@@ -43,7 +40,10 @@ function offsetForYmd(ymdStr: string): number {
   return Math.floor(diffDays / 7);
 }
 
-export default function MealView({ initialYmd }: Props) {
+export default function MealView({ initialYmd, schoolId }: Props) {
+  const school = useMemo(() => getSchool(schoolId), [schoolId]);
+  const isDefaultSchool = school.id === DEFAULT_SCHOOL_ID;
+
   const [weekOffset, setWeekOffset] = useState(() =>
     initialYmd ? offsetForYmd(initialYmd) : 0
   );
@@ -68,15 +68,26 @@ export default function MealView({ initialYmd }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekDates]);
 
-  // URL 쿼리에 selectedYmd 동기화 (공유 가능하게)
+  // URL 쿼리에 selectedYmd / schoolId 동기화 (공유 가능하게)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
+    let changed = false;
     if (url.searchParams.get('ymd') !== selectedYmd) {
       url.searchParams.set('ymd', selectedYmd);
-      window.history.replaceState({}, '', url.toString());
+      changed = true;
     }
-  }, [selectedYmd]);
+    // 기본 학교는 URL 에 schoolId 안 박음 (단순 URL 유지)
+    const currentSchoolParam = url.searchParams.get('schoolId');
+    if (isDefaultSchool && currentSchoolParam) {
+      url.searchParams.delete('schoolId');
+      changed = true;
+    } else if (!isDefaultSchool && currentSchoolParam !== school.id) {
+      url.searchParams.set('schoolId', school.id);
+      changed = true;
+    }
+    if (changed) window.history.replaceState({}, '', url.toString());
+  }, [selectedYmd, school.id, isDefaultSchool]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,11 +97,12 @@ export default function MealView({ initialYmd }: Props) {
     setPhotoUrl(null);
     /* eslint-enable react-hooks/set-state-in-effect */
 
+    const schoolQuery = `&schoolId=${school.id}`;
     const mealReq = fetch(
-      `/api/meal?atpt=${SCHOOL.atptCode}&school=${SCHOOL.schoolCode}&ymd=${selectedYmd}`
+      `/api/meal?ymd=${selectedYmd}${schoolQuery}`
     ).then((r) => r.json());
 
-    const photoReq = fetch(`/api/meal/photo?ymd=${selectedYmd}`)
+    const photoReq = fetch(`/api/meal/photo?ymd=${selectedYmd}${schoolQuery}`)
       .then((r) => r.json())
       .catch(() => ({ photoUrl: null }));
 
@@ -114,7 +126,7 @@ export default function MealView({ initialYmd }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [selectedYmd]);
+  }, [selectedYmd, school.id]);
 
   const today = new Date();
   const todayLabel = `${today.getMonth() + 1}.${today.getDate()} ${DOW[today.getDay()]}요일`;
@@ -130,7 +142,7 @@ export default function MealView({ initialYmd }: Props) {
       <header className="px-5 pt-5 pb-4 sticky top-0 z-10 bg-gradient-to-b from-amber-50 to-amber-50/70 backdrop-blur-sm">
         <div className="flex items-baseline justify-between mb-1">
           <h1 className="font-['Gaegu'] text-2xl font-bold text-stone-800">
-            🍱 {SCHOOL.name}
+            🍱 {school.name}
           </h1>
           <span className="text-xs text-stone-500">{todayLabel}</span>
         </div>
@@ -186,7 +198,7 @@ export default function MealView({ initialYmd }: Props) {
           ymd={selectedYmd}
           meal={meal}
           photoUrl={photoUrl}
-          schoolName={SCHOOL.name}
+          schoolName={school.name}
         />
       )}
 

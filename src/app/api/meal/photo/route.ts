@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CHONGGYE_TARGET, fetchPhotoForDate } from '@/lib/schoolScraper';
+import { fetchPhotoForDate } from '@/lib/schoolScraper';
+import { getSchool } from '@/lib/schools';
 
 // 사진 정보는 학교 홈페이지 갱신 주기를 고려해 1시간 CDN 캐시.
 // stale-while-revalidate 로 학교 서버 일시 장애에도 24시간 마지막 응답 활용.
@@ -10,7 +11,7 @@ const CACHE_SHORT = 'public, s-maxage=60';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const ymd = searchParams.get('ymd');
-  const sysId = searchParams.get('sysId');
+  const schoolId = searchParams.get('schoolId') ?? searchParams.get('sysId');
 
   if (!ymd || !/^\d{8}$/.test(ymd)) {
     return NextResponse.json(
@@ -19,8 +20,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 현재는 청계초만 지원. Phase 3에서 sysId 로 분기 확장 예정.
-  if (sysId && sysId !== CHONGGYE_TARGET.sysId) {
+  const school = getSchool(schoolId);
+
+  // 사진 스크래핑이 지원되지 않는 학교(NEIS only)는 항상 null
+  if (!school.scrape) {
     return NextResponse.json(
       { photoUrl: null },
       { headers: { 'Cache-Control': CACHE_SHORT } }
@@ -28,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const photoUrl = await fetchPhotoForDate(CHONGGYE_TARGET, ymd);
+    const photoUrl = await fetchPhotoForDate(school.scrape, ymd);
     return NextResponse.json(
       { photoUrl },
       { headers: { 'Cache-Control': CACHE_OK } }

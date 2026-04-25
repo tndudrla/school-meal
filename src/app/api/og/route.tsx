@@ -1,10 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { fetchMealFromNeis } from '@/lib/neis';
+import { getSchool } from '@/lib/schools';
 import { parseYmd, formatDate, DOW } from '@/lib/utils';
-
-const SCHOOL_NAME = '청계초등학교';
-const ATPT = 'J10';
-const SCHOOL_CODE = '7569109';
 
 export const runtime = 'nodejs';
 
@@ -19,13 +16,14 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawYmd = searchParams.get('ymd');
   const ymd = rawYmd && /^\d{8}$/.test(rawYmd) ? rawYmd : formatDate(new Date());
+  const school = getSchool(searchParams.get('schoolId'));
 
   const date = parseYmd(ymd);
   const dateLabel = `${date.getMonth() + 1}월 ${date.getDate()}일 (${DOW[date.getDay()]})`;
 
   const meal = await fetchMealFromNeis({
-    atptCode: ATPT,
-    schoolCode: SCHOOL_CODE,
+    atptCode: school.neis.atptCode,
+    schoolCode: school.neis.schoolCode,
     ymd,
     apiKey: process.env.NEIS_API_KEY,
   }).catch(() => null);
@@ -81,7 +79,7 @@ export async function GET(request: Request) {
                 display: 'flex',
               }}
             >
-              🍱 {SCHOOL_NAME}
+              🍱 {school.name}
             </div>
             <div
               style={{
