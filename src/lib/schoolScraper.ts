@@ -68,6 +68,8 @@ export async function fetchWeekPhotos(
     schDt: weekStart,
   });
 
+  // 캐싱은 위쪽 WEEK_CACHE(인메모리, 1시간 TTL)가 담당.
+  // Next.js Data Cache는 GET만 자동 적용되어 POST에는 next: { revalidate } 옵션이 무효.
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -75,8 +77,6 @@ export async function fetchWeekPhotos(
       'User-Agent': 'Mozilla/5.0 (compatible; school-meal-bot)',
     },
     body: body.toString(),
-    // Next.js 서버 런타임 캐싱 (1시간)
-    next: { revalidate: 3600 },
   });
 
   if (!res.ok) {

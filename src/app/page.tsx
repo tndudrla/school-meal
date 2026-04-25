@@ -8,7 +8,6 @@ import {
   formatDate,
   formatWeekRange,
   isWeekBeforeMin,
-  isWeekInFuture,
   DOW,
 } from '@/lib/utils';
 import type { Meal } from '@/types/meal';
@@ -76,7 +75,8 @@ export default function HomePage() {
 
   // 이전/다음 주 이동 가능 여부
   const prevDisabled = isWeekBeforeMin(getWeekDatesByOffset(weekOffset - 1));
-  const nextDisabled = isWeekInFuture(getWeekDatesByOffset(weekOffset + 1));
+  // 기준 주(offset 0, "이번주")가 사용자가 볼 수 있는 가장 미래 주
+  const nextDisabled = weekOffset >= 0;
   const weekRangeLabel = formatWeekRange(weekDates);
 
   return (
