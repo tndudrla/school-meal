@@ -61,20 +61,30 @@ export async function GET(request: Request) {
 
   const allEmpty = meals.every((m) => !m || m.dishes.length === 0);
 
-  // 콘텐츠 기반 세로 길이 계산. 일별 박스 = 헤더(60px) + 패딩(44px)
-  // + 메뉴 줄당 ~38px(빈 날은 한 줄). 박스 사이 gap 18px.
-  // 헤더/푸터 합쳐 약 320px. allEmpty 면 큰 빈 상태 카드 있으니 MIN 으로 충분.
+  // 콘텐츠 기반 세로 길이 계산. 안전 여유 ↑ — 알레르기 풀이가 긴 메뉴는
+  // 한 줄이 두 줄로 wrap 될 수 있어 라인당 픽셀 추정이 빗나감. 모자라면
+  // 푸터가 마지막 박스 위에 겹치는 사고가 남.
+  //
+  // 픽셀 추정:
+  //  - 외곽 padding 상하 60+60 = 120
+  //  - 헤더(학교명 + 주범위 + bottom border + margin) ≈ 200
+  //  - 푸터(border-top + 텍스트 2줄 + margin) ≈ 100
+  //  - 박스 헤더 (요일 + 칼로리) ≈ 56
+  //  - 박스 패딩 22*2 = 44 + border 4 = 48
+  //  - 메뉴 라인당 = fontSize 26 * lineHeight 1.3 + gap 6 ≈ 40px
+  //    (알레르기 wrap 가능성 위해 라인당 1.4배 안전계수 = 56px)
+  //  - 박스 사이 gap 18 * 4 = 72
+  //  - 추가 안전 여유 240px
   const dynamicHeight = allEmpty
     ? MIN_HEIGHT
     : (() => {
         const dayBoxes = meals.map((m) => {
           const lines = m && m.dishes.length > 0 ? m.dishes.length : 1;
-          return 60 + 44 + lines * 38;
+          return 56 + 48 + lines * 56;
         });
         const total =
-          320 + // 헤더 + 푸터 + 외곽 패딩
-          dayBoxes.reduce((s, h) => s + h, 0) +
-          18 * 4; // 일별 박스 사이 gap 4개
+          120 + 200 + 100 + 72 + 240 +
+          dayBoxes.reduce((s, h) => s + h, 0);
         return Math.max(MIN_HEIGHT, total);
       })();
 
