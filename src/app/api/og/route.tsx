@@ -17,8 +17,64 @@ export const runtime = 'nodejs';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawYmd = searchParams.get('ymd');
+  const rawSchoolId = searchParams.get('schoolId');
+
+  // 대표 URL 진입 (학교·날짜 미지정) — 사이트 일반 카드. NEIS 도 미러도 안 침.
+  // Stage 9 — page.tsx 의 isPlainEntry 분기와 짝.
+  if (!rawYmd && !rawSchoolId) {
+    const plain = new ImageResponse(
+      (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#FFFBEB',
+            backgroundImage:
+              'repeating-linear-gradient(45deg, #FFEFD0 0, #FFEFD0 18px, #FDD5B8 18px, #FDD5B8 19px)',
+            fontFamily: 'sans-serif',
+          }}
+        >
+          <div style={{ fontSize: 240, marginBottom: 20 }}>🍱</div>
+          <div
+            style={{
+              fontSize: 96,
+              color: '#1C1917',
+              fontWeight: 800,
+              display: 'flex',
+            }}
+          >
+            오늘의 급식
+          </div>
+          <div
+            style={{
+              fontSize: 36,
+              color: '#78716C',
+              marginTop: 20,
+              display: 'flex',
+            }}
+          >
+            학교 급식 메뉴와 사진을 한눈에
+          </div>
+        </div>
+      ),
+      { width: 1200, height: 630 }
+    );
+    return new Response(plain.body, {
+      status: plain.status,
+      headers: {
+        'Content-Type': 'image/png',
+        // 일반 카드는 거의 안 바뀌므로 하루 캐시
+        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
+      },
+    });
+  }
+
   const ymd = rawYmd && /^\d{8}$/.test(rawYmd) ? rawYmd : formatDate(new Date());
-  const school = getSchool(searchParams.get('schoolId'));
+  const school = getSchool(rawSchoolId);
 
   // 사진 우선 — 있으면 즉시 미러 URL 로 redirect. NEIS 도 안 쳐도 됨.
   const mirroredPhotoUrl = await getMirroredPhotoUrl(school.id, ymd).catch(

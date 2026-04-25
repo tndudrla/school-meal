@@ -13,6 +13,29 @@ export async function generateMetadata({
   searchParams,
 }: PageProps): Promise<Metadata> {
   const { ymd: rawYmd, schoolId } = await searchParams;
+
+  // 대표 URL 직접 공유 (학교·날짜 모두 미지정) — 사이트 자체를 소개하는
+  // 일반 카드. Stage 9 — 카톡으로 / 만 공유했을 때 '청계초등학교 N월 N일
+  // 급식' 으로 박히던 사고의 처방. 학교 한정 사이트로 오해받지 않게.
+  if (!rawYmd && !schoolId) {
+    return {
+      openGraph: {
+        title: '오늘의 급식',
+        description: '학교 급식 메뉴와 사진을 한눈에',
+        type: 'website',
+        locale: 'ko_KR',
+        siteName: '오늘의 급식',
+        images: [{ url: '/api/og', width: 1200, height: 630, alt: '오늘의 급식' }],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: '오늘의 급식',
+        description: '학교 급식 메뉴와 사진을 한눈에',
+        images: ['/api/og'],
+      },
+    };
+  }
+
   const ymd = rawYmd && /^\d{8}$/.test(rawYmd) ? rawYmd : formatDate(new Date());
   const school = getSchool(schoolId);
 

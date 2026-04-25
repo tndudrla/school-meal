@@ -32,7 +32,9 @@ export default function WeekPicker({ dates, selectedYmd, onSelect }: Props) {
                 : 'bg-amber-50 border-amber-200 text-stone-800'}
             `}
           >
-            <span className="block text-xs mb-0.5 opacity-85">
+            <span
+              className={`block text-xs mb-1.5 ${isActive ? '' : 'text-stone-500'}`}
+            >
               {DOW[date.getDay()]}
             </span>
             <span className="block text-lg font-bold">{date.getDate()}</span>
