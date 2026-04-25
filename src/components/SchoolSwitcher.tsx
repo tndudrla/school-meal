@@ -366,13 +366,13 @@ function SchoolRow({
         title={home ? '기본 학교 해제' : '기본 학교로 설정'}
         className={`w-10 h-10 ml-2 flex items-center justify-center rounded-full text-lg transition-transform hover:scale-110 ${
           home
-            ? 'bg-orange-300 text-stone-800'
+            ? 'bg-orange-300'
             : active
-              ? 'bg-orange-400 text-orange-100'
-              : 'bg-amber-100 text-stone-400'
+              ? 'bg-orange-400'
+              : 'bg-amber-100'
         }`}
       >
-        🏠
+        <span className={home ? 'opacity-100' : 'opacity-30'}>🏠</span>
       </button>
       <button
         type="button"
