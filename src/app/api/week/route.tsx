@@ -1,10 +1,18 @@
 /**
- * 주간 식단표 PNG 생성 (Stage 10 — 가정통신문 용도).
+ * 주간 식단표 PNG 생성 (Stage 10 / Stage 10-1).
  *
- * 학부모에게 보내는 한 주 식단 이미지 한 장. 모바일 뷰 + A4 인쇄 둘 다 만족.
- * 사진은 없음 (주 시작 전 시점이라 학교가 아직 사진 안 올림).
+ * 학부모 가정통신문 용도. A4 1장 고정. 흑백 인쇄 친화.
  *
- * 사이즈: 1240×1754 = A4(2:3) 비율, ~150 DPI 인쇄 품질.
+ * Stage 10-1 방향 전환:
+ *   기존: 컬러풀 박스 + 이모지 + 세로 가변 → 인쇄 부적합
+ *   현재: 표 형태 + 검정 텍스트 + 1240×1754 고정 → 컬러도 흑백도 깔끔
+ *
+ * 디자인 원칙:
+ *   - 이모지 X (흑백 프린터 빈 사각형 방지)
+ *   - 둥근 박스/배경색 X (잉크 낭비)
+ *   - 얇은 회색 테두리 + 진한 검정 텍스트
+ *   - 인쇄 마진: 내부 여백 60~80px (A4 ~210mm 폭에 인쇄 safe ≈ 195mm)
+ *   - 메뉴 다 들어가게 폰트 신중히 — 12개 메뉴까지 가능
  */
 
 import { ImageResponse } from 'next/og';
@@ -22,23 +30,26 @@ import type { Meal } from '@/types/meal';
 export const runtime = 'nodejs';
 
 const WIDTH = 1240;
-// A4(2:3) 비율인 1754px 가 기본이지만, 메뉴 양에 따라 5일치가 안 들어갈
-// 수 있어 콘텐츠 기반으로 동적 계산. 대부분 주는 1754px 안에 들어가지만
-// 메뉴가 9개 넘는 날이 있는 주는 자동 확장.
-const MIN_HEIGHT = 1754;
+const HEIGHT = 1754;
 
-// amber/orange 톤 — 사이트 메인 컬러와 동일
+// 인쇄 친화 — 검정 + 회색 톤만
 const COLOR = {
-  bg: '#FFFBEB',
-  panelBg: '#FEF3C7',
-  border: '#FDE68A',
-  accent: '#F97316',
-  text: '#1C1917',
-  subText: '#78716C',
-  allergyText: '#9A3412',
-  caloriesBg: '#FDE68A',
-  caloriesText: '#92400E',
+  bg: '#FFFFFF',
+  text: '#111111',
+  subText: '#555555',
+  faint: '#888888',
+  border: '#222222',
+  borderLight: '#CCCCCC',
+  accentBg: '#F2F2F2', // 헤더 행 옅은 회색 (흑백 인쇄에서도 자연스러움)
 };
+
+// 알레르기 19종 (식약처 표준) — 푸터 매핑 표용
+const ALLERGY_FOOTER = [
+  '1.난류', '2.우유', '3.메밀', '4.땅콩', '5.대두',
+  '6.밀', '7.고등어', '8.게', '9.새우', '10.돼지고기',
+  '11.복숭아', '12.토마토', '13.아황산류', '14.호두', '15.닭고기',
+  '16.쇠고기', '17.오징어', '18.조개류', '19.잣',
+];
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -59,35 +70,6 @@ export async function GET(request: Request) {
     )
   );
 
-  const allEmpty = meals.every((m) => !m || m.dishes.length === 0);
-
-  // 콘텐츠 기반 세로 길이 계산. 안전 여유 ↑ — 알레르기 풀이가 긴 메뉴는
-  // 한 줄이 두 줄로 wrap 될 수 있어 라인당 픽셀 추정이 빗나감. 모자라면
-  // 푸터가 마지막 박스 위에 겹치는 사고가 남.
-  //
-  // 픽셀 추정:
-  //  - 외곽 padding 상하 60+60 = 120
-  //  - 헤더(학교명 + 주범위 + bottom border + margin) ≈ 200
-  //  - 푸터(border-top + 텍스트 2줄 + margin) ≈ 100
-  //  - 박스 헤더 (요일 + 칼로리) ≈ 56
-  //  - 박스 패딩 22*2 = 44 + border 4 = 48
-  //  - 메뉴 라인당 = fontSize 26 * lineHeight 1.3 + gap 6 ≈ 40px
-  //    (알레르기 wrap 가능성 위해 라인당 1.4배 안전계수 = 56px)
-  //  - 박스 사이 gap 18 * 4 = 72
-  //  - 추가 안전 여유 240px
-  const dynamicHeight = allEmpty
-    ? MIN_HEIGHT
-    : (() => {
-        const dayBoxes = meals.map((m) => {
-          const lines = m && m.dishes.length > 0 ? m.dishes.length : 1;
-          return 56 + 48 + lines * 56;
-        });
-        const total =
-          120 + 200 + 100 + 72 + 240 +
-          dayBoxes.reduce((s, h) => s + h, 0);
-        return Math.max(MIN_HEIGHT, total);
-      })();
-
   const response = new ImageResponse(
     (
       <div
@@ -98,34 +80,33 @@ export async function GET(request: Request) {
           flexDirection: 'column',
           backgroundColor: COLOR.bg,
           fontFamily: 'sans-serif',
-          padding: '60px 70px',
+          padding: '70px 80px',
+          color: COLOR.text,
         }}
       >
-        {/* 헤더 — 학교명 + 주 범위 */}
+        {/* 제목 */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            paddingBottom: 30,
-            borderBottom: `4px solid ${COLOR.accent}`,
-            marginBottom: 36,
+            alignItems: 'center',
+            marginBottom: 32,
           }}
         >
           <div
             style={{
-              fontSize: 36,
-              color: COLOR.accent,
-              fontWeight: 700,
+              fontSize: 30,
+              color: COLOR.subText,
+              fontWeight: 500,
               display: 'flex',
-              alignItems: 'center',
-              marginBottom: 12,
+              marginBottom: 8,
             }}
           >
-            🍱 {school.name}
+            {school.name}
           </div>
           <div
             style={{
-              fontSize: 64,
+              fontSize: 56,
               color: COLOR.text,
               fontWeight: 800,
               display: 'flex',
@@ -135,60 +116,110 @@ export async function GET(request: Request) {
           </div>
         </div>
 
-        {/* 5일 모두 비었을 때 */}
-        {allEmpty ? (
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: COLOR.subText,
-            }}
-          >
-            <div style={{ fontSize: 200, marginBottom: 30 }}>🌙</div>
-            <div style={{ fontSize: 40, display: 'flex' }}>
-              아직 등록된 식단이 없어요
-            </div>
-          </div>
-        ) : (
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 18,
-            }}
-          >
-            {weekDates.map((d, idx) =>
-              renderDay(d, meals[idx])
-            )}
-          </div>
-        )}
-
-        {/* 푸터 */}
+        {/* 표 */}
         <div
           style={{
-            marginTop: 30,
-            paddingTop: 20,
-            borderTop: `2px dashed ${COLOR.border}`,
+            display: 'flex',
+            flexDirection: 'column',
+            border: `2px solid ${COLOR.border}`,
+            flex: 1,
+          }}
+        >
+          {/* 표 헤더 */}
+          <div
+            style={{
+              display: 'flex',
+              backgroundColor: COLOR.accentBg,
+              borderBottom: `2px solid ${COLOR.border}`,
+            }}
+          >
+            <div
+              style={{
+                width: 130,
+                padding: '14px 0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 26,
+                fontWeight: 700,
+                borderRight: `1px solid ${COLOR.border}`,
+              }}
+            >
+              요일
+            </div>
+            <div
+              style={{
+                flex: 1,
+                padding: '14px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: 26,
+                fontWeight: 700,
+                borderRight: `1px solid ${COLOR.border}`,
+              }}
+            >
+              메뉴
+            </div>
+            <div
+              style={{
+                width: 160,
+                padding: '14px 0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 26,
+                fontWeight: 700,
+              }}
+            >
+              칼로리
+            </div>
+          </div>
+
+          {/* 5일 행 */}
+          {weekDates.map((d, idx) => renderRow(d, meals[idx], idx === 4))}
+        </div>
+
+        {/* 푸터 — 알레르기 매핑 표 + 출처 */}
+        <div
+          style={{
+            marginTop: 24,
             display: 'flex',
             flexDirection: 'column',
             color: COLOR.subText,
-            fontSize: 22,
+            fontSize: 18,
           }}
         >
-          <div style={{ display: 'flex' }}>
-            ※ 알레르기 표시는 식약처 19종 표준 기준입니다
+          <div
+            style={{
+              fontWeight: 700,
+              color: COLOR.text,
+              marginBottom: 6,
+              display: 'flex',
+            }}
+          >
+            알레르기 유발 식품 (식약처 19종)
           </div>
-          <div style={{ display: 'flex', marginTop: 6 }}>
-            school-meal-phi.vercel.app
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '4px 16px',
+              marginBottom: 12,
+            }}
+          >
+            {ALLERGY_FOOTER.map((s) => (
+              <span key={s} style={{ display: 'flex' }}>
+                {s}
+              </span>
+            ))}
+          </div>
+          <div style={{ display: 'flex', color: COLOR.faint, fontSize: 16 }}>
+            출처: school-meal-phi.vercel.app
           </div>
         </div>
       </div>
     ),
-    { width: WIDTH, height: dynamicHeight }
+    { width: WIDTH, height: HEIGHT }
   );
 
   return new Response(response.body, {
@@ -201,109 +232,96 @@ export async function GET(request: Request) {
   });
 }
 
-function renderDay(date: Date, meal: Meal | null) {
-  const dayLabel = `${DOW[date.getDay()]} ${date.getMonth() + 1}/${date.getDate()}`;
+function renderRow(date: Date, meal: Meal | null, isLast: boolean) {
+  const dowName = DOW[date.getDay()];
+  const dateLabel = `${date.getMonth() + 1}/${date.getDate()}`;
   const hasDishes = meal && meal.dishes.length > 0;
+
+  // 메뉴는 슬래시 구분 한 텍스트로. 알레르기는 (1.5.8) 형태 그대로 옆에
+  // (푸터에 매핑 표 있어 이름 풀이 불필요).
+  const menuText = hasDishes
+    ? meal!.dishes
+        .map((dish) => {
+          const allergy =
+            dish.allergies.length > 0 ? ` (${dish.allergies.join('.')})` : '';
+          return `${dish.name}${allergy}`;
+        })
+        .join(' / ')
+    : '급식 정보가 없는 날이에요';
 
   return (
     <div
-      key={dayLabel}
+      key={dateLabel}
       style={{
         display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: COLOR.panelBg,
-        borderRadius: 20,
-        padding: '22px 30px',
-        border: `2px solid ${COLOR.border}`,
+        flex: 1,
+        borderBottom: isLast ? 'none' : `1px solid ${COLOR.borderLight}`,
+        minHeight: 0,
       }}
     >
-      {/* 일별 헤더 */}
+      {/* 요일 셀 */}
       <div
         style={{
+          width: 130,
+          padding: '16px 0',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: hasDishes ? 14 : 0,
+          justifyContent: 'center',
+          borderRight: `1px solid ${COLOR.border}`,
         }}
       >
         <div
           style={{
-            fontSize: 36,
-            color: COLOR.accent,
+            fontSize: 32,
             fontWeight: 800,
             display: 'flex',
+            marginBottom: 4,
           }}
         >
-          {dayLabel}
+          {dowName}
         </div>
-        {meal?.calories && (
-          <div
-            style={{
-              fontSize: 24,
-              color: COLOR.caloriesText,
-              backgroundColor: COLOR.caloriesBg,
-              padding: '4px 14px',
-              borderRadius: 999,
-              display: 'flex',
-            }}
-          >
-            {meal.calories}
-          </div>
-        )}
-      </div>
-
-      {/* 메뉴 목록 */}
-      {hasDishes ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {meal!.dishes.map((dish, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex',
-                fontSize: 26,
-                color: COLOR.text,
-                lineHeight: 1.3,
-              }}
-            >
-              <span
-                style={{
-                  color: COLOR.accent,
-                  marginRight: 10,
-                  display: 'flex',
-                }}
-              >
-                ●
-              </span>
-              <span style={{ display: 'flex', flexWrap: 'wrap' }}>
-                {dish.name}
-                {dish.allergies.length > 0 && (
-                  <span
-                    style={{
-                      color: COLOR.allergyText,
-                      marginLeft: 8,
-                      fontSize: 22,
-                      display: 'flex',
-                    }}
-                  >
-                    ({formatAllergyNames(dish.allergies)})
-                  </span>
-                )}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
         <div
           style={{
-            fontSize: 26,
+            fontSize: 22,
             color: COLOR.subText,
             display: 'flex',
-            paddingTop: 4,
           }}
         >
-          급식 정보가 없는 날이에요
+          {dateLabel}
         </div>
-      )}
+      </div>
+
+      {/* 메뉴 셀 */}
+      <div
+        style={{
+          flex: 1,
+          padding: '18px 22px',
+          display: 'flex',
+          alignItems: 'center',
+          fontSize: 24,
+          lineHeight: 1.5,
+          color: hasDishes ? COLOR.text : COLOR.faint,
+          borderRight: `1px solid ${COLOR.border}`,
+        }}
+      >
+        {menuText}
+      </div>
+
+      {/* 칼로리 셀 */}
+      <div
+        style={{
+          width: 160,
+          padding: '16px 0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 22,
+          color: COLOR.subText,
+        }}
+      >
+        {meal?.calories ?? '-'}
+      </div>
     </div>
   );
 }
