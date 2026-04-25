@@ -104,18 +104,16 @@ export async function mirrorWeekForSchool(
     };
   }
 
-  const result: MirrorResult = {
-    schoolId: school.id,
-    enabled: true,
-    uploaded: 0,
-    skipped: 0,
-    failed: 0,
-    missing: 0,
-    failures: [],
-  };
+  // 한 ymd 처리의 결과 분류 (병렬 reduce 용)
+  type Outcome =
+    | { kind: 'uploaded' }
+    | { kind: 'skipped' }
+    | { kind: 'failed'; ymd: string; stage: string; message: string };
 
-  for (const [ymd, relPath] of Object.entries(weekMap)) {
-    const sourceUrl = toAbsolutePhotoUrl(school.scrape, relPath);
+  // 한 ymd 단위 작업. throw 하지 않고 Outcome 으로 격리해 다른 ymd 와 독립 진행.
+  // 병렬 실행: 가장 느린 한 장 시간만 들도록 — Vercel Hobby 60s 한도 안에 들어오게 함.
+  const runOne = async ([ymd, relPath]: [string, string]): Promise<Outcome> => {
+    const sourceUrl = toAbsolutePhotoUrl(school.scrape!, relPath);
     let stage = 'init';
 
     try {
@@ -130,8 +128,17 @@ export async function mirrorWeekForSchool(
       if (selectError) throw selectError;
 
       if (existing && existing.source_url === sourceUrl) {
-        result.skipped++;
-        continue;
+        // DB 만 보고 스킵하면, 누가 Storage 파일을 수동 삭제했을 때 영영 복구 안 됨.
+        // 같은 폴더에서 해당 ymd.jpg 가 실제 있는지 확인 (목록 1건만).
+        stage = 'verify-storage';
+        const { data: listed, error: listError } = await sb.storage
+          .from(BUCKET)
+          .list(school.id, { search: `${ymd}.jpg`, limit: 1 });
+        if (listError) throw listError;
+        if (listed && listed.some((f) => f.name === `${ymd}.jpg`)) {
+          return { kind: 'skipped' };
+        }
+        // 파일이 사라졌으면 다운로드~업로드 경로로 떨어뜨려 자동 복구
       }
 
       // 2. 다운로드 (45초 타임아웃)
@@ -175,8 +182,7 @@ export async function mirrorWeekForSchool(
           .from('meal_photos')
           .update({ source_url: sourceUrl })
           .match({ school_id: school.id, ymd });
-        result.skipped++;
-        continue;
+        return { kind: 'skipped' };
       }
 
       // 5. Storage 업로드 (upsert) — 모두 .jpg 로 통일
@@ -200,15 +206,32 @@ export async function mirrorWeekForSchool(
       });
       if (upsert.error) throw upsert.error;
 
-      result.uploaded++;
+      return { kind: 'uploaded' };
     } catch (err) {
-      result.failed++;
       const message = err instanceof Error ? err.message : String(err);
-      result.failures!.push({ ymd, stage, message });
+      return { kind: 'failed', ymd, stage, message };
+    }
+  };
+
+  const outcomes = await Promise.all(Object.entries(weekMap).map(runOne));
+
+  const result: MirrorResult = {
+    schoolId: school.id,
+    enabled: true,
+    uploaded: 0,
+    skipped: 0,
+    failed: 0,
+    missing: 0,
+    failures: [],
+  };
+  for (const o of outcomes) {
+    if (o.kind === 'uploaded') result.uploaded++;
+    else if (o.kind === 'skipped') result.skipped++;
+    else {
+      result.failed++;
+      result.failures!.push({ ymd: o.ymd, stage: o.stage, message: o.message });
     }
   }
-
-  // 성공만 있으면 디버그 필드는 제거
   if (result.failures && result.failures.length === 0) {
     delete result.failures;
   }
