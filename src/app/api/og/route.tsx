@@ -9,27 +9,42 @@ export const runtime = 'nodejs';
 // SNS 미리보기는 자주 바뀔 필요 없음 — CDN 1시간 캐시로 NEIS 호출 최소화.
 //
 // Stage 1: 학교 사진 임베드 제거 (학교 서버 27초 타임아웃 → 카톡 OG 깨짐 사고).
-// Stage 3: Supabase Storage 미러에서만 사진 임베드. 미러 미설정/미스 시 자동 폴백
-//   (이모지 카드). 미러 URL 은 Supabase CDN 이라 응답이 일관되게 빠름.
+// Stage 3: Supabase Storage 미러에서만 사진 임베드.
+// Stage 3-3: next/og <img src=external> 가 운영에서 500 으로 떨어지는 케이스 발견
+//   → 사진 있는 날은 ImageResponse 를 만들지 않고 미러 URL 로 307 redirect.
+//   카톡/SNS OG 봇이 Supabase CDN 이미지를 직접 카드로 표시 → 사진만 풀카드.
+//   사진 없는 날만 메뉴 텍스트 카드(ImageResponse) 폴백.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawYmd = searchParams.get('ymd');
   const ymd = rawYmd && /^\d{8}$/.test(rawYmd) ? rawYmd : formatDate(new Date());
   const school = getSchool(searchParams.get('schoolId'));
 
+  // 사진 우선 — 있으면 즉시 미러 URL 로 redirect. NEIS 도 안 쳐도 됨.
+  const mirroredPhotoUrl = await getMirroredPhotoUrl(school.id, ymd).catch(
+    () => null
+  );
+  if (mirroredPhotoUrl) {
+    return new Response(null, {
+      status: 307,
+      headers: {
+        Location: mirroredPhotoUrl,
+        // Vercel CDN 1시간 캐시. 미러 사진은 cron 마다 갱신되므로 1h 면 충분.
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+      },
+    });
+  }
+
+  // 사진 없는 날 — 기존 메뉴 텍스트 카드 폴백
   const date = parseYmd(ymd);
   const dateLabel = `${date.getMonth() + 1}월 ${date.getDate()}일 (${DOW[date.getDay()]})`;
 
-  // 메뉴 + 미러된 사진 URL 병렬 조회. 둘 다 실패해도 OG 는 생성됨.
-  const [meal, mirroredPhotoUrl] = await Promise.all([
-    fetchMealFromNeis({
-      atptCode: school.neis.atptCode,
-      schoolCode: school.neis.schoolCode,
-      ymd,
-      apiKey: process.env.NEIS_API_KEY,
-    }).catch(() => null),
-    getMirroredPhotoUrl(school.id, ymd).catch(() => null),
-  ]);
+  const meal = await fetchMealFromNeis({
+    atptCode: school.neis.atptCode,
+    schoolCode: school.neis.schoolCode,
+    ymd,
+    apiKey: process.env.NEIS_API_KEY,
+  }).catch(() => null);
 
   const dishes = meal?.dishes.slice(0, 6).map((d) => d.name) ?? [];
 
@@ -44,7 +59,7 @@ export async function GET(request: Request) {
           fontFamily: 'sans-serif',
         }}
       >
-        {/* 좌측: Supabase 미러된 사진(있으면) 또는 패턴 배경 + 도시락 이모지(폴백) */}
+        {/* 좌측: 패턴 배경 + 도시락 이모지 (사진 없는 날의 폴백 카드) */}
         <div
           style={{
             width: 540,
@@ -53,25 +68,13 @@ export async function GET(request: Request) {
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: '#FDD5B8',
-            backgroundImage: mirroredPhotoUrl
-              ? undefined
-              : 'repeating-linear-gradient(45deg, #FFEFD0 0, #FFEFD0 18px, #FDD5B8 18px, #FDD5B8 19px)',
+            backgroundImage:
+              'repeating-linear-gradient(45deg, #FFEFD0 0, #FFEFD0 18px, #FDD5B8 18px, #FDD5B8 19px)',
             position: 'relative',
             overflow: 'hidden',
           }}
         >
-          {mirroredPhotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={mirroredPhotoUrl}
-              alt=""
-              width={540}
-              height={630}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          ) : (
-            <div style={{ fontSize: 220 }}>🍱</div>
-          )}
+          <div style={{ fontSize: 220 }}>🍱</div>
         </div>
 
         {/* 우측: 메뉴 텍스트 */}
