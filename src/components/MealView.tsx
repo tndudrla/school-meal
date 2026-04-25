@@ -236,6 +236,24 @@ export default function MealView({ initialYmd, schoolId }: Props) {
         <br />
         학교 홈페이지에 사진이 올라오면 자동으로 표시돼요. 아직 없으면 메뉴 아이콘만 예쁘게 보여드려요!
       </div>
+
+      <div className="mx-5 mt-3 flex items-center justify-center gap-4 text-xs text-stone-500">
+        <a
+          href="mailto:sooyoungkim@kakao.com"
+          className="hover:text-orange-500 transition-colors"
+        >
+          ✉️ 문의
+        </a>
+        <span className="text-stone-300">·</span>
+        <a
+          href="https://instagram.com/tndudrla"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-orange-500 transition-colors"
+        >
+          📷 @tndudrla
+        </a>
+      </div>
     </>
   );
 }
