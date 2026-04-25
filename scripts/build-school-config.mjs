@@ -90,39 +90,75 @@ function regionFromAddress(addr) {
 /** HMPG_ADRES 응답에서 host 만 추출. 잡음 제거. */
 function hostFromHmpg(raw) {
   if (!raw) return null;
-  const m = raw.match(/^https?:\/\/([^/]+)/i) ?? raw.match(/^([^/]+\.goeay\.kr)/i);
-  return m ? m[1].toLowerCase() : null;
+  // 학교 입력 데이터에 앞뒤 공백·탭 섞이는 케이스 관찰됨 (안양 평촌초 등)
+  const trimmed = raw.trim();
+  // "https://...", "host/...", 또는 host 단독 모두 처리
+  const stripped = trimmed.replace(/^https?:\/\//i, '').split('/')[0].trim();
+  return stripped ? stripped.toLowerCase() : null;
 }
 
-/** host 가 *-e.goeay.kr 면 sysId(`gwacheon-e`) 반환. 아니면 null. */
+/**
+ * host 가 경기교육청 학교 CMS 도메인이면 sysId 반환.
+ * 관찰된 패턴: *-e.goeay.kr (과천 등), *.goegu.kr (의왕 등)
+ */
 function sysIdFromHost(host) {
   if (!host) return null;
-  const m = host.match(/^([a-z0-9-]+)\.goeay\.kr$/i);
+  // host 의 첫 라벨이 sysId — 예: gwacheon-e.goeay.kr → gwacheon-e
+  //                              baekunhosucho.goegu.kr → baekunhosucho
+  const m = host.match(/^([a-z0-9-]+)\.(goeay|goegu)\.kr$/i);
   return m ? m[1] : null;
 }
 
-/** sysId 에서 `-e` 접미 떼서 학교 id 후보 (`gwacheon-e` → `gwacheon`). */
+/**
+ * sysId 에서 학교 id (URL 친화 키) 생성.
+ * - `-e` 접미 (goeay 패턴): chonggye-e → chonggye
+ * - `cho` 접미 (goegu 패턴): naedongcho → naedong
+ */
 function idFromSysId(sysId) {
-  return sysId.replace(/-e$/, '');
+  return sysId.replace(/-e$/, '').replace(/cho$/, '');
 }
 
 // ----- NEIS 조회 -------------------------------------------------------------
 
-async function neisSearchByName(name) {
+async function neisQuery(searchTerm, page = 1) {
   const u = new URL(NEIS_BASE);
   u.searchParams.set('Type', 'json');
-  u.searchParams.set('pSize', '20');
+  u.searchParams.set('pSize', '100');
+  u.searchParams.set('pIndex', String(page));
   u.searchParams.set('ATPT_OFCDC_SC_CODE', ATPT);
-  u.searchParams.set('SCHUL_NM', name);
+  u.searchParams.set('SCHUL_NM', searchTerm);
   if (NEIS_KEY) u.searchParams.set('KEY', NEIS_KEY);
 
   const res = await fetchWithTimeout(u.toString());
   if (!res.ok) throw new Error(`NEIS HTTP ${res.status}`);
   const data = await res.json();
-  if (data.RESULT && data.RESULT.CODE !== 'INFO-000') {
-    return [];
-  }
+  if (data.RESULT && data.RESULT.CODE !== 'INFO-000') return [];
   return data.schoolInfo?.[1]?.row ?? [];
+}
+
+async function neisSearchByName(name) {
+  // NEIS 두 가지 quirk:
+  // 1. SCHUL_NM 풀네임 일치 시 0건 돌려주는 학교가 있음 (예: 백운호수초등학교)
+  //    → 풀네임 실패 시 "초등학교" 떼고 키워드 폴백
+  // 2. 무키 호출은 pSize/pIndex 가 강제 5 + 첫 페이지만 → 키워드 너무 흔하면
+  //    상위 5건에 안 들어와 묻힘. 키 있으면 페이징, 없으면 풀네임 우선 전략
+  // 전략: 풀네임 시도 → 빈 결과 시 키워드 폴백
+  const fullResults = await neisQuery(name);
+  if (fullResults.length > 0) return fullResults;
+
+  const keyword = name.replace(/(초|중|고)등학교$/u, '');
+  if (keyword === name) return []; // 키워드 변형 없음
+
+  // 키 있을 때만 페이징 누적, 무키는 첫 페이지만
+  const collected = [];
+  const maxPages = NEIS_KEY ? 20 : 1;
+  for (let page = 1; page <= maxPages; page++) {
+    const rows = await neisQuery(keyword, page);
+    if (rows.length === 0) break;
+    collected.push(...rows);
+    if (rows.length < 100) break;
+  }
+  return collected;
 }
 
 async function neisSearchByCity(cityName) {
@@ -169,9 +205,29 @@ async function fetchMiFromMain(host, sysId) {
   }
   if (!res.ok) return { mi: null, reason: `main.do HTTP ${res.status}` };
   const html = await res.text();
-  const m = html.match(/selectFoodMenuView\.do\?mi=(\d+)/);
-  if (!m) return { mi: null, reason: 'selectFoodMenuView 링크 없음' };
-  return { mi: m[1], reason: null };
+
+  // 패턴 A — 일반 anchor: href="/{sysId}/ad/fm/foodmenu/selectFoodMenuView.do?mi=4417"
+  const a = html.match(/selectFoodMenuView\.do\?mi=(\d+)/);
+  if (a) return { mi: a[1], reason: null };
+
+  // 패턴 B — onclick 권한 체크: onclick="menuAccessCheck('1754', 'kwanyang-e')"
+  // 학교가 식단 메뉴에 인증/권한을 걸어둔 케이스. mi 는 첫 번째 인자.
+  const b = html.match(
+    /menuAccessCheck\(\s*['"](\d+)['"]\s*,\s*['"][^'"]+['"]\s*\)[^<]*<\/a>\s*<\/li>\s*<li>\s*<a[^>]*onclick="menuAccessCheck\(\s*['"](\d+)['"]/
+  );
+  // 위 정교한 시퀀스 매치는 "급식실" 이후 식단 mi 를 짚으려는 건데,
+  // 단순화해 onclick 의 모든 mi 를 모은 뒤, 식단 키워드 근처 mi 를 잡는 게 안전.
+  const onclickMis = [...html.matchAll(/menuAccessCheck\(\s*['"](\d+)['"]/g)].map(
+    (mm) => mm[1]
+  );
+  // "식단" 라벨 가까이의 anchor 안 mi 를 찾는다 (간단히 식단 앞 200자 이내)
+  const sikdanIdx = html.indexOf('식단');
+  if (sikdanIdx >= 0 && onclickMis.length > 0) {
+    const window = html.slice(Math.max(0, sikdanIdx - 200), sikdanIdx + 200);
+    const wm = window.match(/menuAccessCheck\(\s*['"](\d+)['"]/);
+    if (wm) return { mi: wm[1], reason: null };
+  }
+  return { mi: null, reason: 'selectFoodMenuView/menuAccessCheck 식단 링크 없음' };
 }
 
 // ----- 학교 1개를 SchoolConfig 객체로 -------------------------------------
