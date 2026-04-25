@@ -471,3 +471,97 @@ Location: https://...supabase.co/storage/v1/object/public/meal-photos/chonggye/2
   관찰. 그래도 라우트 내부가 가벼워(미러 1회 조회 + 307) 운영상 부담 없음.
 - 사진 없는 학교/날짜의 ImageResponse 폴백 경로는 변경 없음 — 카톡 캐시
   무결성 유지.
+
+---
+
+## 2026-04-25 — [Stage 4] 과천 6개 초등학교 확장 + 즐겨찾기 + 미러 동시성 캡
+
+### 목표 (북극성과의 연결)
+
+청계초 1개에서 과천시 6개 초등학교로 첫 다중 학교 확장. **북극성(전국 1만
+학교)** 의 첫 실측 검증 — 학교 등록·미러·OG·UI 가 N개 학교에서 자연스럽게
+동작하는지. 동시에 사용자가 관심 학교를 빠르게 보는 즐겨찾기 UX 추가, 그리고
+대규모 확장 토대로 미러 다운로드의 동시성을 캡한다.
+
+### 변경 (커밋 순서)
+
+#### 1. `744beac` perf(mirror): 학교당 동시 다운로드 캡 3
+
+학교 첫 등록 시 7개 ymd 가 **모두 동시에** fetch 되던 동작을 3개 배치 단위로
+직렬화. 정상 운영 중엔 select-existing 으로 대부분 skip 되어 영향 없지만, 6개
+학교를 한꺼번에 추가하면 42장 동시 다운로드 → 학교 서버 폭격 + Vercel 60s
+한도 위험. 라운드 사이는 직렬, 배치 안은 병렬.
+
+```ts
+const CONCURRENCY = 3;
+for (let i = 0; i < entries.length; i += CONCURRENCY) {
+  const batch = entries.slice(i, i + CONCURRENCY);
+  outcomes.push(...await Promise.all(batch.map(runOne)));
+}
+```
+
+학교당 7장이면 3+3+1 라운드, 라운드당 ~10s 가정 시 ~30s 이내. 1만 학교 시점에도
+학교 서버 입장에서 동시 3 요청은 무리 없는 상한 — 진짜 확장 토대.
+
+#### 2. `8d86974` feat(schools): 과천 5개 초등학교 추가
+
+`SCHOOLS` 객체에 5개 항목 추가. 출처는 NEIS Open API 의 `schoolInfo` 엔드포인트
+(주소에 "과천" 포함만 채택). scrape host 는 응답의 `HMPG_ADRES` 에서 직접 추출.
+
+| id | name | schoolCode | host |
+| --- | --- | --- | --- |
+| `gwacheon` | 과천초등학교 | 7569010 | gwacheon-e.goeay.kr |
+| `kwanmun` | 관문초등학교 | 7569011 | kwanmun-e.goeay.kr |
+| `munwon` | 문원초등학교 | 7569018 | munwon-e.goeay.kr |
+| `chonggye` | 청계초등학교 | 7569109 | chonggye-e.goeay.kr (기존) |
+| `gcgh` | 과천갈현초등학교 | 7569213 | gcgh-e.goeay.kr |
+| `yulmok` | 과천율목초등학교 | 7569216 | yulmok-e.goeay.kr |
+
+DEFAULT_SCHOOL_ID 는 청계초 그대로 유지 (레거시 URL 호환).
+
+**미해결**: `mi`(메뉴 식별자) 는 청계초 = 9904 가 검증된 값. 다른 학교의 mi 는
+우선 9904 로 두고, 첫 cron 응답에서 `photos.count` 가 0 인 학교는 학교별로
+점검·보정. 안 되는 학교는 `scrape` 만 빼서 메뉴는 보이고 사진은 안 보이는
+상태로 유지(피처 플래그가 그 케이스 처리).
+
+#### 3. `fa52f33` feat(ui): 학교 선택 바텀시트 + 즐겨찾기
+
+새 컴포넌트 `SchoolSwitcher`. 헤더의 `🍱 {학교명}` 을 버튼으로 만들어 누르면
+하단에서 시트가 슬라이드 업. 상단 섹션 "⭐ 즐겨찾기", 하단 섹션 "전체 학교".
+각 항목 우측에 별 토글.
+
+저장: `localStorage.favoriteSchoolIds = string[]`. 서버 동기화 안 함 (계정/로그인
+없음 — 기기-로컬이 자연스러움). SSR 안전 (`typeof window` 가드, mount 시 로드).
+
+학교 선택 → `setActiveSchoolId(...)` → 기존 `MealView` 의 URL 동기화 useEffect
+가 `?schoolId=...` 쿼리를 자동 갱신. 기존 패턴 재사용으로 변경 면적 최소화.
+
+### 의도적으로 안 한 것
+
+- **Cron 분할 / 큐 도입**: 6개 단계엔 과함. 동시성 캡으로 토대 마련, 100개 학교
+  넘으면 별도 Stage.
+- **즐겨찾기 서버 동기화**: 계정 도입 시점에.
+- **학교 검색 입력창**: 6개면 리스트가 빠름. 학교 수 늘면 추가.
+- **학교별 mi 자동 추출**: 9904 로 시도하고 안 되는 학교만 잘라냄. 자동화는
+  스크래퍼 보강 필요 → 별도 Stage.
+
+### 검증 (배포 후 — 후속 메모 필요)
+
+```bash
+curl.exe -H "Authorization: Bearer <CRON_SECRET>" \
+  "https://school-meal-phi.vercel.app/api/cron/refresh"
+```
+
+응답 `schools[]` 6건 확인 포인트:
+- `neis.today/tomorrow`: 모두 true 또는 false 일관 (NEIS 코드 정합)
+- `photos.count`: 청계초는 1~3, 나머지는 mi=9904 일치 여부에 따라 0~3
+- `mirror.uploaded` + `mirror.skipped` 합이 photos.count 와 일치
+- 함수 실행 시간 60s 안에 끝나는지 (Vercel 로그)
+
+→ 후속: 결과 확인 후 mi 재조정 / 안 되는 학교 scrape 제거.
+
+UI 검증:
+- localhost dev 서버 / 배포 후 헤더 학교명 클릭 → 시트 열림
+- 별 토글 → 즐겨찾기 섹션에 학교 추가/제거
+- 새로고침 후 즐겨찾기 유지 (localStorage 영속성)
+- 모바일 뷰포트(480px) 에서 깨짐 없음
