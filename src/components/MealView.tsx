@@ -5,6 +5,7 @@ import WeekPicker from '@/components/WeekPicker';
 import MealCard from '@/components/MealCard';
 import SchoolSwitcher from '@/components/SchoolSwitcher';
 import WeekExportButton from '@/components/WeekExportButton';
+import InstallPrompt from '@/components/InstallPrompt';
 import {
   getWeekDatesByOffset,
   formatDate,
@@ -236,6 +237,8 @@ export default function MealView({ initialYmd, schoolId }: Props) {
         <br />
         학교 홈페이지에 사진이 올라오면 자동으로 표시돼요. 아직 없으면 메뉴 아이콘만 예쁘게 보여드려요!
       </div>
+
+      <InstallPrompt />
 
       <div className="mx-5 mt-3 flex items-center justify-center gap-4 text-xs text-stone-500">
         <a

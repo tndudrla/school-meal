@@ -1133,3 +1133,58 @@ if (navigator.canShare?.({ files: [file] })) {
 - 새 기능이 영양교사·학부모·학생에게 도움이 되는가?
 - 학교 행정 부담이 늘어나지 않는가?
 - "수익 모델은?" 질문에는 답할 게 없어도 괜찮다 (의도된 비영리)
+
+---
+
+## Stage 11 — 홈 화면 추가 유도 (2026-04-26)
+
+### 발견
+
+사용자가 직접 "홈 화면에 추가" 해보고 **앱처럼 쓸 수 있다는 걸 발견**.
+Stage 9 에서 manifest + apple-icon + appleWebApp 까지 깔아둬 PWA 인프라는
+이미 작동 중이었으나, 일반 방문자는 그 메뉴를 알 길이 없음:
+- iOS Safari: 공유 → "홈 화면에 추가" 5단계, 자동 안내 없음
+- Android Chrome: 주소창 옆 "설치" 아이콘 작아 눈에 안 띔
+
+처방: 사이트 하단에 작은 안내 배너 + 안드로이드는 직접 설치 다이얼로그.
+
+### 플랫폼별 동작
+
+**Android Chrome** — `beforeinstallprompt` 가로채기:
+- 페이지 로드 시 브라우저가 BIP 이벤트 발사 (Chrome 의 휴리스틱 통과 시점)
+- 이벤트 객체 보관 → 우리 "추가하기" 버튼 누르면 `evt.prompt()` 호출
+- OS 가 설치 다이얼로그 띄움
+- `appinstalled` 이벤트 → 배너 자동 숨김
+
+**iOS Safari** — BIP 표준 미지원:
+- 배너 누르면 모달이 떠서 3단계 그림 안내
+  (공유 버튼 ⤴ → "홈 화면에 추가" → "추가")
+- 모달 닫기 = "확인" / "다시 보지 않기"
+
+**카카오 인앱 브라우저** — 차단:
+- userAgent 에 `KAKAOTALK` 포함 시 배너 안 띄움
+- 외부 브라우저로 열기 안내까지 가면 사용자 피로 ↑, 사이트는 정상 동작
+
+### 표시 조건
+
+다음 중 하나라도 true 면 숨김:
+- 이미 standalone (홈 화면에서 켰을 때) — `display-mode: standalone` 또는
+  iOS 의 `navigator.standalone === true`
+- localStorage `dismissedInstallBanner === '1'` (X 누름)
+- 데스크톱 (모바일 우선)
+- 카톡 인앱 UA
+
+### 변경 파일
+
+- `src/components/InstallPrompt.tsx` — 신규. BIP + iOS 모달 + 닫기 기억
+- `src/components/MealView.tsx` — 사진 안내 박스와 이메일/인스타 줄 사이 끼움
+
+### 의도적으로 안 한 것
+
+- **데스크톱 배너** — PWA 활용도 낮고 "홈 화면" 개념도 모호
+- **카톡에서 외부 브라우저로 안내** — 사용자 피로
+- **자동 prompt 호출** — OS 가 막음, 사용자 인터랙션 필요
+- **A2HS 통계/추적** — 비영리, 운영 지표 안 모음
+- **푸시 알림 권한** — 별 Stage. 지금은 install 만
+- **Service Worker (오프라인 캐싱)** — 별 Stage
+- **닫기 후 일정 시간 뒤 재노출** — 닫음 = 영구 닫음. 재표시는 사용자 짜증
