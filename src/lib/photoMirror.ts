@@ -11,12 +11,19 @@
  *   → 환경변수 미설정 상태에서도 라이브 사이트는 Stage 1+2 동작 그대로 유지.
  */
 
+import sharp from 'sharp';
 import { fetchWeekPhotos, toAbsolutePhotoUrl } from '@/lib/schoolScraper';
 import { getServiceRoleClient, getAnonClient } from '@/lib/supabase/admin';
 import type { SchoolConfig } from '@/lib/schools';
 
 const BUCKET = 'meal-photos';
 const SLIDING_WINDOW_DAYS = 7; // 오늘 + 과거 7일
+
+// 리사이즈 정책: OG 이미지가 540px 폭이라 1280px 면 충분히 선명.
+// JPEG q=80 + progressive 면 5MB 원본이 ~150KB 로 압축됨 (97% 절감).
+// 이는 1만 학교 확장 시 Storage(1GB free → Pro 250GB 안에서 운영) 의 핵심 결정.
+const RESIZE_MAX = 1280;
+const JPEG_QUALITY = 80;
 
 interface MirrorResult {
   schoolId: string;
@@ -59,18 +66,6 @@ export async function sha256Hex(buf: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
-}
-
-/** URL/경로에서 확장자 추출. 못 찾으면 'jpg'. */
-function extFromUrl(url: string): string {
-  const m = url.match(/\.(jpe?g|png|webp)(?:$|\?)/i);
-  return (m?.[1] ?? 'jpg').toLowerCase();
-}
-
-function contentTypeOf(ext: string): string {
-  if (ext === 'png') return 'image/png';
-  if (ext === 'webp') return 'image/webp';
-  return 'image/jpeg';
 }
 
 /**
@@ -141,8 +136,7 @@ export async function mirrorWeekForSchool(
 
       // 2. 다운로드 (45초 타임아웃)
       // 청계초 사진 한 장이 5MB+ 이고 학교 서버가 한국 외 리전에서 느림.
-      // Vercel Hobby 함수 최대 60초라 45초까지 허용 (전체 학교 합산 시 여유).
-      // 추후: sharp 로 다운로드 즉시 압축·리사이즈하면 저장량/속도 모두 개선.
+      // Vercel Hobby 함수 최대 60초라 45초까지 허용.
       stage = 'download';
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 45000);
@@ -155,9 +149,25 @@ export async function mirrorWeekForSchool(
         clearTimeout(timer);
       }
 
-      // 3. 해시로 변경 감지
+      // 3. sharp 로 리사이즈·압축 (5MB → ~150KB, 97% 절감)
+      // 원본 형식 무관하게 모두 JPEG 로 통일 → 캐시·CDN 효율 ↑
+      stage = 'resize';
+      const resized = await sharp(Buffer.from(buf))
+        .rotate() // EXIF 회전 적용 후 메타 제거 (sharp 의 표준 패턴)
+        .resize({
+          width: RESIZE_MAX,
+          height: RESIZE_MAX,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality: JPEG_QUALITY, progressive: true, mozjpeg: true })
+        .toBuffer();
+
+      // 4. 해시로 변경 감지 (리사이즈 결과 기준 — 내용 변화 정확히 반영)
       stage = 'hash';
-      const hash = await sha256Hex(buf);
+      // Buffer → 새 ArrayBuffer 로 복사 (SharedArrayBuffer 가능성 회피)
+      const resizedAb = new Uint8Array(resized).buffer;
+      const hash = await sha256Hex(resizedAb);
       if (existing?.content_hash === hash) {
         // 내용 동일, URL 만 바뀜 → DB 만 갱신
         stage = 'update-source-url';
@@ -169,17 +179,16 @@ export async function mirrorWeekForSchool(
         continue;
       }
 
-      // 4. Storage 업로드 (upsert)
+      // 5. Storage 업로드 (upsert) — 모두 .jpg 로 통일
       stage = 'storage-upload';
-      const ext = extFromUrl(sourceUrl);
-      const storagePath = `${school.id}/${ymd}.${ext}`;
-      const upload = await sb.storage.from(BUCKET).upload(storagePath, buf, {
-        contentType: contentTypeOf(ext),
+      const storagePath = `${school.id}/${ymd}.jpg`;
+      const upload = await sb.storage.from(BUCKET).upload(storagePath, resized, {
+        contentType: 'image/jpeg',
         upsert: true,
       });
       if (upload.error) throw upload.error;
 
-      // 5. DB upsert
+      // 6. DB upsert
       stage = 'db-upsert';
       const upsert = await sb.from('meal_photos').upsert({
         school_id: school.id,
@@ -187,7 +196,7 @@ export async function mirrorWeekForSchool(
         storage_path: storagePath,
         source_url: sourceUrl,
         content_hash: hash,
-        bytes: buf.byteLength,
+        bytes: resized.byteLength,
       });
       if (upsert.error) throw upsert.error;
 

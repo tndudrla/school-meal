@@ -251,6 +251,56 @@ ESLint, TypeScript, `npm run build` 모두 통과. 라이브 사이트 동작 10
 
 - **Phase 3 시작**: 학교 검색 페이지 (`/search`), 학교 선택 UI. 현재는 코드에 학교를
   직접 추가해야 하지만 사용자가 검색해서 추가 가능하게.
-- **사진 OG 용 리사이즈**: 1280px 원본 그대로 미러 중. 540×630 OG 사이즈로
-  pre-resize 하면 Storage·egress 모두 절감 (sharp 또는 Supabase Edge Function).
 - **모니터링/알림**: cron 실패 시 Slack/Discord 웹훅.
+
+---
+
+## 2026-04-25 — [Stage 3-1] sharp 리사이즈 도입 (저장 공간 97% 절감)
+
+### 목표 (북극성과의 연결)
+
+전국 1만 학교로 확장 시 저장 공간이 핵심 비용. 청계초 사진을 실측해본 결과 **장당
+5.4MB** 였음. 그대로 미러하면:
+
+- 1만 학교 × 7일 × 5MB = **350GB** → Supabase Free(1GB) · Pro(250GB) 모두 초과 ❌
+
+`sharp` 로 1280px JPEG q=80 리사이즈하면 **5.4MB → ~150KB (97% 절감)**:
+
+- 1만 학교 × 7일 × 150KB = **10.5GB** → Pro 250GB 안에서 충분 ✅
+
+### 발단
+
+Stage 3 활성화 후 cron 첫 호출에서 사진 3장 모두 download 단계 abort. 학교 사진이
+5MB+ 라 15초 타임아웃 초과. 타임아웃을 45s 로 늘리고 cron maxDuration 을 60s 로
+명시했으나 그래도 **`FUNCTION_INVOCATION_TIMEOUT`** 발생.
+
+근본 해결은 두 갈래:
+1. 타임아웃 더 늘리기 + 학교 분할 cron (임시방편, 저장 공간 문제 미해결)
+2. **다운로드 후 즉시 sharp 리사이즈로 저장 효율 동시 해결** ← 사용자 통찰로 채택
+
+### 변경
+
+- `package.json`: `sharp ^0.34.5` 추가 (Vercel 빌드 시 네이티브 바이너리 자동 처리)
+- `src/lib/photoMirror.ts`:
+  - 다운로드 직후 `sharp(buf).rotate().resize(1280, fit:'inside').jpeg({quality:80, mozjpeg:true})` 적용
+  - 결과는 모두 `.jpg` 로 통일 (원본 png/webp 도 jpeg 로 변환 → 캐시·CDN 효율 ↑)
+  - `extFromUrl`, `contentTypeOf` 헬퍼 제거 (더 이상 필요 없음)
+  - `content_hash` 는 리사이즈 결과 기준 (내용 변화 정확히 반영)
+
+### 검증 (배포 후)
+
+```bash
+# cron 호출 기대 결과
+curl.exe -H "Authorization: Bearer <CRON_SECRET>" \
+  "https://school-meal-phi.vercel.app/api/cron/refresh"
+
+# mirror.uploaded: 3, mirror.failed: 0 기대
+# Supabase Storage → meal-photos → chonggye/ 폴더에
+#   20260420.jpg (~150KB), 20260421.jpg, 20260422.jpg 3개 파일
+```
+
+### 다음 단계
+
+- 카톡 OG 디버거(https://developers.kakao.com/tool/clear/og) 갱신 후 카톡 공유
+  → 사진 박힌 OG 미리보기 확인
+- 디버그용 `failures` 배열 응답은 동작 안정화 확인 후 제거 가능 (작은 정리)
