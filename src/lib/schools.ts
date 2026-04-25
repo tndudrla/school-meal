@@ -9,7 +9,6 @@
  */
 
 import type { SchoolScrapeTarget } from './schoolScraper';
-import { CHONGGYE_TARGET } from './schoolScraper';
 
 export type SchoolLevel = 'elementary' | 'middle' | 'high';
 
@@ -34,7 +33,11 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 과천',
     neis: { atptCode: 'J10', schoolCode: '7569109' },
-    scrape: CHONGGYE_TARGET,
+    scrape: {
+      host: 'chonggye-e.goeay.kr',
+      sysId: 'chonggye-e',
+      mi: '9904',
+    },
   },
 };
 

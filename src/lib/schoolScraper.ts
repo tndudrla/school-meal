@@ -156,11 +156,4 @@ export async function fetchPhotoForDate(
   return toAbsolutePhotoUrl(target, path);
 }
 
-// 청계초 기본 설정 (Phase 3에서 학교 확장 시 DB/설정으로 분리)
-export const CHONGGYE_TARGET: SchoolScrapeTarget = {
-  host: 'chonggye-e.goeay.kr',
-  sysId: 'chonggye-e',
-  mi: '9904',
-};
-
 export { ymdToDashed };
