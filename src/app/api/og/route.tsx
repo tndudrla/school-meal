@@ -1,6 +1,5 @@
 import { ImageResponse } from 'next/og';
 import { fetchMealFromNeis } from '@/lib/neis';
-import { CHONGGYE_TARGET, fetchPhotoForDate } from '@/lib/schoolScraper';
 import { parseYmd, formatDate, DOW } from '@/lib/utils';
 
 const SCHOOL_NAME = '청계초등학교';
@@ -9,7 +8,13 @@ const SCHOOL_CODE = '7569109';
 
 export const runtime = 'nodejs';
 
-// SNS 미리보기는 자주 바뀔 필요 없음 — CDN 1시간 캐시로 학교/NEIS 호출 최소화
+// SNS 미리보기는 자주 바뀔 필요 없음 — CDN 1시간 캐시로 NEIS 호출 최소화.
+//
+// Stage 1: 학교 사진을 OG 이미지에 임베드하지 않는다.
+// 이유: next/og 가 <img src=학교URL> 를 만나면 서버 사이드에서 사진을 다운로드/디코딩하는데,
+//       학교 서버가 응답이 느린 경우(관측: 27초) 카카오톡 OG 봇이 타임아웃되어
+//       빈 미리보기가 카톡 캐시에 박히는 사고가 발생.
+// Stage 3 에서 Supabase Storage 미러로 사진을 안전하게 박을 예정.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawYmd = searchParams.get('ymd');
@@ -18,16 +23,12 @@ export async function GET(request: Request) {
   const date = parseYmd(ymd);
   const dateLabel = `${date.getMonth() + 1}월 ${date.getDate()}일 (${DOW[date.getDay()]})`;
 
-  // 메뉴 + 사진을 병렬 fetch — 둘 다 실패해도 폴백 카드 그림
-  const [meal, photoUrl] = await Promise.all([
-    fetchMealFromNeis({
-      atptCode: ATPT,
-      schoolCode: SCHOOL_CODE,
-      ymd,
-      apiKey: process.env.NEIS_API_KEY,
-    }).catch(() => null),
-    fetchPhotoForDate(CHONGGYE_TARGET, ymd).catch(() => null),
-  ]);
+  const meal = await fetchMealFromNeis({
+    atptCode: ATPT,
+    schoolCode: SCHOOL_CODE,
+    ymd,
+    apiKey: process.env.NEIS_API_KEY,
+  }).catch(() => null);
 
   const dishes = meal?.dishes.slice(0, 6).map((d) => d.name) ?? [];
 
@@ -42,7 +43,7 @@ export async function GET(request: Request) {
           fontFamily: 'sans-serif',
         }}
       >
-        {/* 좌측: 사진 또는 이모지 플레이스홀더 */}
+        {/* 좌측: 패턴 배경 + 도시락 이모지 (Stage 3 에서 미러된 학교 사진으로 교체 예정) */}
         <div
           style={{
             width: 540,
@@ -57,18 +58,7 @@ export async function GET(request: Request) {
             overflow: 'hidden',
           }}
         >
-          {photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photoUrl}
-              alt=""
-              width={540}
-              height={630}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          ) : (
-            <div style={{ fontSize: 220 }}>🍱</div>
-          )}
+          <div style={{ fontSize: 220 }}>🍱</div>
         </div>
 
         {/* 우측: 메뉴 텍스트 */}
