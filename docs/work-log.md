@@ -770,3 +770,74 @@ NEIS 데이터 입력 시 공백이 섞인 케이스. `hostFromHmpg` 에서 trim
 - ~20개교: region 그룹핑 필요
 - ~50개교 이상: 검색 입력창 필수
 - 100+: 검색에 즐겨찾기 우선 정렬, 즐겨찾기 만 보기 토글 등 검토
+
+---
+
+## 2026-04-25 — [Stage 7] 사용자별 기본 학교(홈) 설정
+
+### 목표 (북극성과의 연결)
+
+학교 62개교 운영 중. "내가 자주 보는 학교가 첫 화면에 떠 있으면 좋겠다" 가
+자연스러운 요구. 모든 사용자가 청계초로 떨어지는 동작은 1만 학교 시점에
+명백히 잘못된 디폴트.
+
+### 우선순위 결정
+
+```
+첫 진입 시 활성 학교
+  ├─ ?schoolId=X 있음 → X (공유 링크 — 카톡 공유 케이스 우선)
+  └─ 없음
+       ├─ localStorage.homeSchoolId 있음 → 그 학교
+       └─ 없음 → DEFAULT_SCHOOL_ID (chonggye)
+```
+
+URL 우선이라 카톡으로 받은 링크는 의도대로 동작. 직접 진입(URL 비어있음) 만
+홈 학교로 떨어짐.
+
+### 변경
+
+#### `b7ba1ca` feat(ui): 사용자별 기본 학교(홈) 설정
+
+**파일 1**: `src/components/SchoolSwitcher.tsx`
+- `HOME_KEY = 'homeSchoolId'` 상수, `homeSchoolId` state 추가
+- mount 시 useEffect 로 localStorage 로드 (즐겨찾기와 같은 패턴)
+- `toggleHomeSchool(schoolId)` — 같은 학교 누르면 해제(null), 다른 학교면 교체
+- `SchoolRow` 에 `home` prop + 🏠 토글 버튼 (별표 ⭐ 옆)
+- 홈 학교는 학교명 앞에 🏠 이모지 prefix 로 시각 표시 (모달 안에서만)
+
+**파일 2**: `src/components/MealView.tsx`
+- mount 시 useEffect 1개 추가:
+  - `schoolId` prop 있으면(URL 명시) → 손대지 않음
+  - 없으면 localStorage 읽고, `SCHOOLS[home]` 에 존재하면 `setActiveSchoolId(home)`
+  - 잘못된 id 는 무시 — 학교 삭제 시점에 안전
+
+### SSR 깜빡임 처방
+
+`page.tsx` 는 server component 라 첫 HTML 에 `school.name` 이 박혀 나간다. 사용자가
+"의왕 왕곡초" 를 홈으로 설정해뒀어도 첫 paint 에 청계초가 잠시 보이고 mount 직후
+왕곡초로 덮인다.
+
+`page.tsx` 를 client-only 로 바꿔 깜빡임을 0 으로 만들 수도 있지만:
+- OG 메타데이터·SEO 가 server-side 결정에 의존
+- 깜빡임은 mount 직후 50ms 이내라 사용자 인지 한계 근처
+- 공유 링크 케이스는 SSR 도 정확한 학교를 박고 나가므로 깜빡임 없음
+
+→ **page.tsx server component 유지** 가 더 큰 가치 보존. 깜빡임은 의도적
+트레이드오프.
+
+### 검증
+
+- 새 시크릿 창에서 `/` 진입 → 청계초 (DEFAULT) 노출
+- 모달에서 의왕 왕곡초 선택 → 🏠 토글 → 모달 닫고 새 탭에서 `/` 진입 → 왕곡초
+- URL `/?schoolId=chonggye` 직접 입력 → 청계초 (URL 우선)
+- localStorage 의 `homeSchoolId` 값이 의왕 왕곡초로 저장됨 확인
+- 같은 학교에 🏠 다시 누르면 해제, 다른 학교에 누르면 교체 확인
+
+### 의도적으로 안 한 것
+
+- **page.tsx client-only 전환** — OG/SEO 비용 > 깜빡임 비용
+- **URL 에 homeSchoolId 자동 박기** — URL 은 지금 보는 학교, homeSchoolId 는
+  디바이스 설정. 의미가 달라 분리
+- **계정 기반 서버 동기화** — 계정/로그인 도입 시점에. 마이그레이션 단순(string)
+- **즐겨찾기와 홈 통합** — 홈=1개, 즐겨찾기=N개 로 별개 개념. 사용 데이터 본 뒤
+  통합 검토
