@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import WeekPicker from '@/components/WeekPicker';
 import MealCard from '@/components/MealCard';
 import SchoolSwitcher from '@/components/SchoolSwitcher';
@@ -94,25 +94,17 @@ export default function MealView({ initialYmd, schoolId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekDates]);
 
-  // URL 쿼리에 selectedYmd / schoolId 동기화 (공유 가능하게)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const url = new URL(window.location.href);
-    let changed = false;
-    if (url.searchParams.get('ymd') !== selectedYmd) {
-      url.searchParams.set('ymd', selectedYmd);
-      changed = true;
-    }
-    // 기본 학교는 URL 에 schoolId 안 박음 (단순 URL 유지)
-    const currentSchoolParam = url.searchParams.get('schoolId');
-    if (isDefaultSchool && currentSchoolParam) {
-      url.searchParams.delete('schoolId');
-      changed = true;
-    } else if (!isDefaultSchool && currentSchoolParam !== school.id) {
+  // 공유 버튼 누를 때만 호출되는 URL 빌더. 사용자 인터랙션 시점에 자동
+  // 동기화하던 동작은 의도적으로 제거됨 (Stage 8) — 핸드폰 즐겨찾기에 그날
+  // 그 학교가 박히는 부작용을 막기 위함.
+  // window.location 접근이 클릭 시점에만 일어나도록 함수형으로 감쌈 (SSR 안전).
+  const getShareUrl = useCallback(() => {
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('ymd', selectedYmd);
+    if (!isDefaultSchool) {
       url.searchParams.set('schoolId', school.id);
-      changed = true;
     }
-    if (changed) window.history.replaceState({}, '', url.toString());
+    return url.toString();
   }, [selectedYmd, school.id, isDefaultSchool]);
 
   useEffect(() => {
@@ -226,6 +218,7 @@ export default function MealView({ initialYmd, schoolId }: Props) {
           meal={meal}
           photoUrl={photoUrl}
           schoolName={school.name}
+          getShareUrl={getShareUrl}
         />
       )}
 

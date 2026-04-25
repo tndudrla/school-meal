@@ -9,6 +9,12 @@ interface Props {
   meal: Meal | null;
   photoUrl?: string | null;
   schoolName?: string;
+  /**
+   * 공유 버튼 클릭 시점에 호출되는 URL 빌더. 부모가 정의.
+   * Stage 8 부터 클라이언트 URL 자동 동기화를 빼서, 공유 시점에만 명시적으로
+   * 빌드. 미지정 시 폴백으로 `window.location.href` 사용 (구버전 호환).
+   */
+  getShareUrl?: () => string;
 }
 
 const EMOJI_MAP: Record<string, string> = {
@@ -24,7 +30,13 @@ function pickEmoji(mainDish: string): string {
   return '🍽️';
 }
 
-export default function MealCard({ ymd, meal, photoUrl, schoolName }: Props) {
+export default function MealCard({
+  ymd,
+  meal,
+  photoUrl,
+  schoolName,
+  getShareUrl,
+}: Props) {
   const date = parseYmd(ymd);
   const dateLabel = `${date.getMonth() + 1}월 ${date.getDate()}일 (${DOW[date.getDay()]})`;
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -32,9 +44,7 @@ export default function MealCard({ ymd, meal, photoUrl, schoolName }: Props) {
   async function handleShare() {
     if (typeof window === 'undefined') return;
 
-    const url = new URL(window.location.href);
-    url.searchParams.set('ymd', ymd);
-    const shareUrl = url.toString();
+    const shareUrl = getShareUrl ? getShareUrl() : window.location.href;
 
     const dishesPreview =
       meal && meal.dishes.length > 0
