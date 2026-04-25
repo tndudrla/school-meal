@@ -22,7 +22,10 @@ import type { Meal } from '@/types/meal';
 export const runtime = 'nodejs';
 
 const WIDTH = 1240;
-const HEIGHT = 1754;
+// A4(2:3) 비율인 1754px 가 기본이지만, 메뉴 양에 따라 5일치가 안 들어갈
+// 수 있어 콘텐츠 기반으로 동적 계산. 대부분 주는 1754px 안에 들어가지만
+// 메뉴가 9개 넘는 날이 있는 주는 자동 확장.
+const MIN_HEIGHT = 1754;
 
 // amber/orange 톤 — 사이트 메인 컬러와 동일
 const COLOR = {
@@ -57,6 +60,23 @@ export async function GET(request: Request) {
   );
 
   const allEmpty = meals.every((m) => !m || m.dishes.length === 0);
+
+  // 콘텐츠 기반 세로 길이 계산. 일별 박스 = 헤더(60px) + 패딩(44px)
+  // + 메뉴 줄당 ~38px(빈 날은 한 줄). 박스 사이 gap 18px.
+  // 헤더/푸터 합쳐 약 320px. allEmpty 면 큰 빈 상태 카드 있으니 MIN 으로 충분.
+  const dynamicHeight = allEmpty
+    ? MIN_HEIGHT
+    : (() => {
+        const dayBoxes = meals.map((m) => {
+          const lines = m && m.dishes.length > 0 ? m.dishes.length : 1;
+          return 60 + 44 + lines * 38;
+        });
+        const total =
+          320 + // 헤더 + 푸터 + 외곽 패딩
+          dayBoxes.reduce((s, h) => s + h, 0) +
+          18 * 4; // 일별 박스 사이 gap 4개
+        return Math.max(MIN_HEIGHT, total);
+      })();
 
   const response = new ImageResponse(
     (
@@ -158,7 +178,7 @@ export async function GET(request: Request) {
         </div>
       </div>
     ),
-    { width: WIDTH, height: HEIGHT }
+    { width: WIDTH, height: dynamicHeight }
   );
 
   return new Response(response.body, {
