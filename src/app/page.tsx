@@ -37,8 +37,11 @@ export async function generateMetadata({
     // 메타데이터 실패는 무시 — 페이지 자체는 정상 동작
   }
 
-  const title = `${school.name} ${dateLabel} 급식`;
-  const description = mealLine
+  // OG/Twitter 카드용 풍성한 제목·설명. <title> 태그(브라우저 탭/즐겨찾기) 는
+  // layout.tsx 의 고정 제목을 상속 — Stage 8-1 에서 즐겨찾기 텍스트에 그날 날짜가
+  // 박히던 사고를 막기 위해 분리했다.
+  const ogTitle = `${school.name} ${dateLabel} 급식`;
+  const ogDescription = mealLine
     ? `🍱 ${mealLine}`
     : '오늘의 급식, 한 상 차렸어요';
   // 기본 학교는 schoolId 생략. OG 라우트는 잘못된 schoolId 도 폴백 처리하므로 안전.
@@ -48,17 +51,15 @@ export async function generateMetadata({
       : `/api/og?ymd=${ymd}&schoolId=${school.id}`;
 
   return {
-    title,
-    description,
     openGraph: {
-      title,
-      description,
+      title: ogTitle,
+      description: ogDescription,
       images: [
         {
           url: ogImageUrl,
           width: 1200,
           height: 630,
-          alt: title,
+          alt: ogTitle,
         },
       ],
       type: 'website',
@@ -67,8 +68,8 @@ export async function generateMetadata({
     },
     twitter: {
       card: 'summary_large_image',
-      title,
-      description,
+      title: ogTitle,
+      description: ogDescription,
       images: [ogImageUrl],
     },
   };

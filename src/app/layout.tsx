@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+// 브라우저 탭/즐겨찾기에 보이는 고정 제목. 학교·날짜 무관하게 항상 같음
+// (Stage 8-1 — 즐겨찾기 텍스트에 그날 날짜가 박히던 사고의 처방).
+// 카톡 공유 카드의 풍성한 제목은 page.tsx 의 openGraph.title 가 별도 담당.
 export const metadata: Metadata = {
-  title: '오늘의 급식 | 청계초등학교',
-  description: '청계초등학교 급식 메뉴를 한눈에',
+  title: '학교 급식 벤치마크',
+  description: '학교 급식 메뉴와 사진을 한눈에',
 };
 
 export default function RootLayout({
