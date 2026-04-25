@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import WeekPicker from '@/components/WeekPicker';
 import MealCard from '@/components/MealCard';
+import SchoolSwitcher from '@/components/SchoolSwitcher';
 import {
   getWeekDatesByOffset,
   formatDate,
@@ -41,7 +42,12 @@ function offsetForYmd(ymdStr: string): number {
 }
 
 export default function MealView({ initialYmd, schoolId }: Props) {
-  const school = useMemo(() => getSchool(schoolId), [schoolId]);
+  // schoolId 를 내부 state 로 끌어와 SchoolSwitcher 의 onSelect 와 연결.
+  // initialYmd 와 마찬가지로 prop 은 첫 진입의 시드 역할만.
+  const [activeSchoolId, setActiveSchoolId] = useState<string>(
+    () => schoolId ?? DEFAULT_SCHOOL_ID
+  );
+  const school = useMemo(() => getSchool(activeSchoolId), [activeSchoolId]);
   const isDefaultSchool = school.id === DEFAULT_SCHOOL_ID;
 
   const [weekOffset, setWeekOffset] = useState(() =>
@@ -141,9 +147,10 @@ export default function MealView({ initialYmd, schoolId }: Props) {
     <>
       <header className="px-5 pt-5 pb-4 sticky top-0 z-10 bg-gradient-to-b from-amber-50 to-amber-50/70 backdrop-blur-sm">
         <div className="flex items-baseline justify-between mb-1">
-          <h1 className="font-['Gaegu'] text-2xl font-bold text-stone-800">
-            🍱 {school.name}
-          </h1>
+          <SchoolSwitcher
+            currentSchoolId={school.id}
+            onSelect={setActiveSchoolId}
+          />
           <span className="text-xs text-stone-500">{todayLabel}</span>
         </div>
         <p className="text-xs text-stone-500 pl-7">오늘의 급식, 한 상 차렸어요</p>
