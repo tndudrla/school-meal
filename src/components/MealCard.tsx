@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import type { Meal } from '@/types/meal';
 import { DOW, parseYmd } from '@/lib/utils';
 
@@ -5,6 +8,7 @@ interface Props {
   ymd: string;
   meal: Meal | null;
   photoUrl?: string | null;
+  schoolName?: string;
 }
 
 const EMOJI_MAP: Record<string, string> = {
@@ -20,9 +24,49 @@ function pickEmoji(mainDish: string): string {
   return '🍽️';
 }
 
-export default function MealCard({ ymd, meal, photoUrl }: Props) {
+export default function MealCard({ ymd, meal, photoUrl, schoolName }: Props) {
   const date = parseYmd(ymd);
   const dateLabel = `${date.getMonth() + 1}월 ${date.getDate()}일 (${DOW[date.getDay()]})`;
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
+  async function handleShare() {
+    if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('ymd', ymd);
+    const shareUrl = url.toString();
+
+    const dishesPreview =
+      meal && meal.dishes.length > 0
+        ? meal.dishes
+            .slice(0, 5)
+            .map((d) => d.name)
+            .join(', ')
+        : '';
+
+    const title = `${schoolName ?? '학교'} ${dateLabel} 급식`;
+    const text = dishesPreview ? `🍱 ${dishesPreview}` : '오늘의 급식 보기';
+
+    // 1. Web Share API 우선
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      try {
+        await navigator.share({ title, text, url: shareUrl });
+        return;
+      } catch (err) {
+        // 사용자가 공유 시트를 취소한 경우는 무시. 그 외엔 폴백으로.
+        if ((err as Error).name === 'AbortError') return;
+      }
+    }
+
+    // 2. 클립보드 폴백
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareToast('링크가 복사됐어요!');
+    } catch {
+      setShareToast('복사에 실패했어요. 주소를 직접 복사해주세요.');
+    }
+    setTimeout(() => setShareToast(null), 2000);
+  }
 
   if (!meal) {
     return (
@@ -67,6 +111,37 @@ export default function MealCard({ ymd, meal, photoUrl }: Props) {
               </p>
             </div>
           </>
+        )}
+
+        {/* 공유 버튼 — 사진 영역 우상단 */}
+        <button
+          onClick={handleShare}
+          aria-label="공유하기"
+          className="absolute top-3 right-3 w-10 h-10 rounded-full bg-stone-900/55 hover:bg-stone-900/75 backdrop-blur-sm text-amber-50 flex items-center justify-center transition-colors shadow-md"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-5 h-5"
+          >
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+          </svg>
+        </button>
+
+        {/* 토스트 메시지 (클립보드 폴백 시) */}
+        {shareToast && (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-stone-900/85 text-amber-50 text-xs px-3 py-1.5 rounded-full font-['Gaegu']">
+            {shareToast}
+          </div>
         )}
       </div>
 
