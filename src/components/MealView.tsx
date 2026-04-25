@@ -242,16 +242,16 @@ export default function MealView({ initialYmd, schoolId }: Props) {
           href="mailto:sooyoungkim@kakao.com"
           className="hover:text-orange-500 transition-colors"
         >
-          ✉️ 문의
+          ✉️ sooyoungkim@kakao.com
         </a>
         <span className="text-stone-300">·</span>
         <a
-          href="https://instagram.com/tndudrla"
+          href="https://instagram.com/tbdudrla"
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-orange-500 transition-colors"
         >
-          📷 @tndudrla
+          📷 @tbdudrla
         </a>
       </div>
     </>
