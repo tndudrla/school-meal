@@ -42,4 +42,5 @@ next-env.d.ts
 
 # screenshots / scratch
 화면 캡처 *.png
+스크린샷 *.png
 *.scratch.*
