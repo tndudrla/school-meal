@@ -3,12 +3,18 @@ import { fetchWeekPhotos } from '@/lib/schoolScraper';
 import { fetchMealFromNeis } from '@/lib/neis';
 import { formatDate } from '@/lib/utils';
 import { listSchools } from '@/lib/schools';
+import {
+  isMirrorEnabled,
+  mirrorWeekForSchool,
+  pruneOldPhotos,
+} from '@/lib/photoMirror';
 
 /**
  * 주기적으로 NEIS 메뉴 + 학교 홈페이지 사진을 미리 불러와 캐시를 데움.
  * 등록된 모든 학교를 순회한다 (Stage 2). 한 학교 실패는 다른 학교를 막지 않음.
  *
- * Stage 3 에서 Supabase 미러 단계가 같은 cron 안에 추가될 예정.
+ * Stage 3: SUPABASE_SERVICE_ROLE_KEY 가 설정되어 있으면 학교 사진을 Supabase Storage 에
+ *   미러링하고, 슬라이딩 윈도우(오늘 + 과거 7일)로 cleanup. 키 없으면 미러 단계 스킵.
  *
  * 보호:
  *   - CRON_SECRET 환경변수가 설정되어 있으면, Authorization: Bearer <secret> 요구
@@ -28,6 +34,7 @@ export async function GET(request: NextRequest) {
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
   const tomorrowYmd = formatDate(tomorrow);
+  const mirrorOn = isMirrorEnabled();
 
   const perSchool = await Promise.all(
     listSchools().map(async (school) => {
@@ -67,13 +74,23 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // 3. Supabase 미러 (키 있을 때만)
+      if (mirrorOn && school.scrape) {
+        result.mirror = await mirrorWeekForSchool(school, ymd);
+      }
+
       return result;
     })
   );
 
+  // 4. 슬라이딩 윈도우 cleanup (전 학교 공통, 키 있을 때만)
+  const prune = mirrorOn ? await pruneOldPhotos(ymd) : { enabled: false, pruned: 0 };
+
   return NextResponse.json({
     triggeredAt: new Date().toISOString(),
     ymd,
+    mirrorEnabled: mirrorOn,
     schools: perSchool,
+    prune,
   });
 }

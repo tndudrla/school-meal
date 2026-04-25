@@ -149,3 +149,108 @@ ESLint, TypeScript, `npm run build` 모두 통과.
   환경변수 유무로 게이팅 → 키 없으면 Stage 1+2 동작 그대로 유지(피처 플래그).
 - 사용자가 직접 해야 할 것: Supabase 프로젝트 셋업 + 환경변수 등록 (Stage 3 코드
   배포는 그 전에 가능).
+
+---
+
+## 2026-04-25 — [Stage 3] Supabase 미러 + 슬라이딩 윈도우 (코드 배포, 피처 OFF)
+
+### 목표 (북극성과의 연결)
+
+전국 1만 학교 확장 시에도 OG/앱이 학교 서버 응답 속도에 의존하지 않게 한다. 학교
+사진을 Supabase Storage 에 미러링하고, **오늘 + 과거 7일치만 보존**하는 슬라이딩
+윈도우로 운영해 저장 비용을 거의 일정하게 유지한다.
+
+### 슬라이딩 윈도우 결정 근거 (사용자 통찰)
+
+전체 데이터 보관 시 비용 추정:
+
+| 보관 정책 | 1교 | 1000교 | 10000교 |
+|---|---|---|---|
+| 무한 누적 (1년) | 36 MB | 36 GB | 360 GB ❌ Pro 도 부족 |
+| **슬라이딩 7일** | 0.7 MB | 0.7 GB | 7 GB ✅ |
+
+7일치만 보존하면 장기적으로도 Free tier(1GB) → Pro($25/250GB) 안에서 충분히 운영
+가능. 과거 데이터는 사용자 가치가 낮음(학부모는 오늘·이번주 위주로 봄).
+
+### 변경 (피처 플래그 OFF 상태로 배포)
+
+**신규**:
+- `supabase/migrations/0001_meal_photos.sql` — `meal_photos` 테이블, RLS, Storage
+  버킷 정책 안내. PK `(school_id, ymd)`, 인덱스 `ymd`, 변경 감지용 `content_hash`.
+- `src/lib/supabase/admin.ts` — `getServiceRoleClient()`(쓰기), `getAnonClient()`(읽기).
+  키 없으면 `null` 반환 (피처 플래그). 모듈 단위 캐싱.
+- `src/lib/photoMirror.ts` — 핵심 모듈 4개 함수:
+  - `mirrorWeekForSchool(school, todayYmd)`: 한 학교의 주간 사진을 Supabase 에 미러.
+    URL/해시 동일 시 다운로드 스킵, 다운로드 15초 타임아웃, ymd 단위로 실패 격리.
+  - `pruneOldPhotos(todayYmd)`: 슬라이딩 윈도우. `ymd < today-7일` 인 행과 Storage
+    객체 일괄 삭제.
+  - `getMirroredPhotoUrl(schoolId, ymd)`: anon 으로 조회. 미러 미스 시 null.
+  - `isMirrorEnabled()`: service_role 키 유무 체크.
+
+**수정**:
+- `src/app/api/cron/refresh/route.ts` — `mirrorOn` 일 때만 학교별 `mirrorWeekForSchool`
+  + 마지막에 `pruneOldPhotos`. 응답에 `mirrorEnabled`, `mirror`, `prune` 추가.
+- `src/app/api/og/route.tsx` — Stage 1 에서 끈 사진 임베드를 **Supabase 미러 한정** 으로
+  재활성화. 미러 미스 시 자동 폴백(이모지 카드).
+- `src/app/api/meal/photo/route.ts` — Supabase 미러 우선 → 학교 직접 폴백 → null.
+  응답에 `source: 'mirror' | 'origin'` 추가.
+- `README.md` — `SUPABASE_SERVICE_ROLE_KEY` 환경변수 추가 안내.
+
+### 피처 플래그 동작 (검증 완료)
+
+`SUPABASE_SERVICE_ROLE_KEY` 없이 `npm run dev` 후 검증:
+
+```bash
+# 1. cron — mirrorEnabled: false, prune: skipped
+curl http://localhost:3000/api/cron/refresh
+→ {"mirrorEnabled":false, "schools":[{"schoolId":"chonggye", "neis":..., "photos":...}], "prune":{"enabled":false,"pruned":0}}
+
+# 2. /api/meal/photo — origin 폴백
+curl 'http://localhost:3000/api/meal/photo?ymd=20260420'
+→ {"photoUrl":"https://chonggye-e.goeay.kr/...", "source":"origin"}
+
+# 3. /api/og 응답시간 — Stage 1 수준 유지
+curl -o /dev/null -w "%{time_total}s\n" 'http://localhost:3000/api/og?ymd=20260422'
+→ 0.25초
+```
+
+ESLint, TypeScript, `npm run build` 모두 통과. 라이브 사이트 동작 100% 동일.
+
+### 사용자 활성화 절차 (수동, Claude 가 못 하는 부분)
+
+1. **Supabase 프로젝트 준비**: https://supabase.com/dashboard → Region: Northeast Asia
+   Seoul (한국). 기존 프로젝트 재사용 가능.
+2. **API 키 3개 복사**: Project Settings → API
+   - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
+   - anon public → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **service_role** → `SUPABASE_SERVICE_ROLE_KEY` ⚠️ 절대 클라이언트 노출 금지
+3. **SQL 실행**: Dashboard → SQL Editor → New query →
+   `supabase/migrations/0001_meal_photos.sql` 내용 전체 붙여넣고 Run.
+4. **Storage 버킷 생성**: Dashboard → Storage → New bucket → 이름 `meal-photos`,
+   **Public 체크**.
+5. **Storage 정책**: Storage → meal-photos → Policies → "New policy" → SQL 파일
+   하단 주석의 select 정책 추가.
+6. **Vercel 환경변수**: Project → Settings → Environment Variables → Production +
+   Preview 양쪽에 위 3개 키 추가. 저장 후 자동 재배포.
+7. **첫 cron 수동 트리거**:
+   ```bash
+   curl -H "Authorization: Bearer <CRON_SECRET>" \
+     https://school-meal-phi.vercel.app/api/cron/refresh
+   ```
+   응답에서 `mirrorEnabled: true`, `mirror.uploaded > 0` 확인.
+8. **카톡 OG 디버거 갱신** (https://developers.kakao.com/tool/clear/og) → 새 ymd 카톡
+   공유 → 사진 박힌 OG 미리보기 확인.
+
+### 비용 모니터링 (활성화 후)
+
+- Supabase Dashboard → Storage 사용량 (학교당 ~700KB 예상)
+- Vercel → Functions → cron 실행 로그에서 `mirror.uploaded`, `prune.pruned` 추이
+- 100 학교 넘어가면 OG 라우트 트래픽 증가 → Vercel Pro 검토 시점
+
+### 다음 단계 (Stage 3 이후)
+
+- **Phase 3 시작**: 학교 검색 페이지 (`/search`), 학교 선택 UI. 현재는 코드에 학교를
+  직접 추가해야 하지만 사용자가 검색해서 추가 가능하게.
+- **사진 OG 용 리사이즈**: 1280px 원본 그대로 미러 중. 540×630 OG 사이즈로
+  pre-resize 하면 Storage·egress 모두 절감 (sharp 또는 Supabase Edge Function).
+- **모니터링/알림**: cron 실패 시 Slack/Discord 웹훅.

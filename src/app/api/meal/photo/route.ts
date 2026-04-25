@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchPhotoForDate } from '@/lib/schoolScraper';
 import { getSchool } from '@/lib/schools';
+import { getMirroredPhotoUrl } from '@/lib/photoMirror';
 
 // 사진 정보는 학교 홈페이지 갱신 주기를 고려해 1시간 CDN 캐시.
 // stale-while-revalidate 로 학교 서버 일시 장애에도 24시간 마지막 응답 활용.
@@ -30,10 +31,20 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // 1. Supabase 미러 우선 (Stage 3). 없으면 null.
+  const mirrored = await getMirroredPhotoUrl(school.id, ymd).catch(() => null);
+  if (mirrored) {
+    return NextResponse.json(
+      { photoUrl: mirrored, source: 'mirror' },
+      { headers: { 'Cache-Control': CACHE_OK } }
+    );
+  }
+
+  // 2. 학교 홈페이지 직접 (미러 미설정 또는 미러에 아직 없는 날짜)
   try {
     const photoUrl = await fetchPhotoForDate(school.scrape, ymd);
     return NextResponse.json(
-      { photoUrl },
+      { photoUrl, source: 'origin' },
       { headers: { 'Cache-Control': CACHE_OK } }
     );
   } catch (error) {

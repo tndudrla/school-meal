@@ -1,17 +1,16 @@
 import { ImageResponse } from 'next/og';
 import { fetchMealFromNeis } from '@/lib/neis';
 import { getSchool } from '@/lib/schools';
+import { getMirroredPhotoUrl } from '@/lib/photoMirror';
 import { parseYmd, formatDate, DOW } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
 // SNS 미리보기는 자주 바뀔 필요 없음 — CDN 1시간 캐시로 NEIS 호출 최소화.
 //
-// Stage 1: 학교 사진을 OG 이미지에 임베드하지 않는다.
-// 이유: next/og 가 <img src=학교URL> 를 만나면 서버 사이드에서 사진을 다운로드/디코딩하는데,
-//       학교 서버가 응답이 느린 경우(관측: 27초) 카카오톡 OG 봇이 타임아웃되어
-//       빈 미리보기가 카톡 캐시에 박히는 사고가 발생.
-// Stage 3 에서 Supabase Storage 미러로 사진을 안전하게 박을 예정.
+// Stage 1: 학교 사진 임베드 제거 (학교 서버 27초 타임아웃 → 카톡 OG 깨짐 사고).
+// Stage 3: Supabase Storage 미러에서만 사진 임베드. 미러 미설정/미스 시 자동 폴백
+//   (이모지 카드). 미러 URL 은 Supabase CDN 이라 응답이 일관되게 빠름.
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawYmd = searchParams.get('ymd');
@@ -21,12 +20,16 @@ export async function GET(request: Request) {
   const date = parseYmd(ymd);
   const dateLabel = `${date.getMonth() + 1}월 ${date.getDate()}일 (${DOW[date.getDay()]})`;
 
-  const meal = await fetchMealFromNeis({
-    atptCode: school.neis.atptCode,
-    schoolCode: school.neis.schoolCode,
-    ymd,
-    apiKey: process.env.NEIS_API_KEY,
-  }).catch(() => null);
+  // 메뉴 + 미러된 사진 URL 병렬 조회. 둘 다 실패해도 OG 는 생성됨.
+  const [meal, mirroredPhotoUrl] = await Promise.all([
+    fetchMealFromNeis({
+      atptCode: school.neis.atptCode,
+      schoolCode: school.neis.schoolCode,
+      ymd,
+      apiKey: process.env.NEIS_API_KEY,
+    }).catch(() => null),
+    getMirroredPhotoUrl(school.id, ymd).catch(() => null),
+  ]);
 
   const dishes = meal?.dishes.slice(0, 6).map((d) => d.name) ?? [];
 
@@ -41,7 +44,7 @@ export async function GET(request: Request) {
           fontFamily: 'sans-serif',
         }}
       >
-        {/* 좌측: 패턴 배경 + 도시락 이모지 (Stage 3 에서 미러된 학교 사진으로 교체 예정) */}
+        {/* 좌측: Supabase 미러된 사진(있으면) 또는 패턴 배경 + 도시락 이모지(폴백) */}
         <div
           style={{
             width: 540,
@@ -50,13 +53,25 @@ export async function GET(request: Request) {
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: '#FDD5B8',
-            backgroundImage:
-              'repeating-linear-gradient(45deg, #FFEFD0 0, #FFEFD0 18px, #FDD5B8 18px, #FDD5B8 19px)',
+            backgroundImage: mirroredPhotoUrl
+              ? undefined
+              : 'repeating-linear-gradient(45deg, #FFEFD0 0, #FFEFD0 18px, #FDD5B8 18px, #FDD5B8 19px)',
             position: 'relative',
             overflow: 'hidden',
           }}
         >
-          <div style={{ fontSize: 220 }}>🍱</div>
+          {mirroredPhotoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mirroredPhotoUrl}
+              alt=""
+              width={540}
+              height={630}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div style={{ fontSize: 220 }}>🍱</div>
+          )}
         </div>
 
         {/* 우측: 메뉴 텍스트 */}

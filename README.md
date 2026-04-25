@@ -26,11 +26,17 @@ http://localhost:3000 접속.
 ## 환경 변수 (`.env.local`)
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co     # Stage 3 미러 활성화 시 필수
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...     # Stage 3 미러 활성화 시 필수 (읽기)
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_...              # Stage 3 미러 활성화 시 필수 (쓰기)
 NEIS_API_KEY=              # 선택 (하루 1000회까진 무키도 OK)
 CRON_SECRET=               # Vercel Cron 보호용 (선택)
 ```
+
+> Stage 3 활성화: `SUPABASE_SERVICE_ROLE_KEY` 가 있으면 cron 이 학교 사진을 Supabase
+> Storage 에 미러링하고, OG 이미지에 사진이 임베드된다. 키가 없으면 미러 단계가 자동
+> 스킵되어 기존 동작(학교 서버 직접) 유지. 셋업 가이드는 `supabase/migrations/` 와
+> `docs/work-log.md` 참고.
 
 ## 주요 경로
 
