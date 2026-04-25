@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import WeekPicker from '@/components/WeekPicker';
 import MealCard from '@/components/MealCard';
 import SchoolSwitcher from '@/components/SchoolSwitcher';
+import WeekExportButton from '@/components/WeekExportButton';
 import {
   getWeekDatesByOffset,
   formatDate,
@@ -184,14 +185,22 @@ export default function MealView({ initialYmd, schoolId }: Props) {
             <span className="text-xs text-orange-500 ml-1.5">이번주</span>
           )}
         </div>
-        <button
-          onClick={() => setWeekOffset((o) => o + 1)}
-          disabled={nextDisabled}
-          className="w-9 h-9 rounded-full bg-amber-100 border-2 border-amber-200 text-stone-700 font-bold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 transition-colors"
-          aria-label="다음 주"
-        >
-          ▶
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setWeekOffset((o) => o + 1)}
+            disabled={nextDisabled}
+            className="w-9 h-9 rounded-full bg-amber-100 border-2 border-amber-200 text-stone-700 font-bold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-200 transition-colors"
+            aria-label="다음 주"
+          >
+            ▶
+          </button>
+          <WeekExportButton
+            schoolId={school.id}
+            schoolName={school.name}
+            weekOffset={weekOffset}
+            weekRangeLabel={weekRangeLabel}
+          />
+        </div>
       </div>
 
       <WeekPicker
