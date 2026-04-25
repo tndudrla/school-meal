@@ -213,7 +213,17 @@ export async function mirrorWeekForSchool(
     }
   };
 
-  const outcomes = await Promise.all(Object.entries(weekMap).map(runOne));
+  // 학교당 동시 다운로드 캡 — 학교 서버 폭격 방지 + 부트스트랩 시 60s 한도 안에 들어오게.
+  // 정상 운영 중엔 select-existing 으로 대부분 skip 되므로 영향 없음.
+  // 1만 학교 확장 시에도 학교 서버 입장에선 동시 3 요청이 무리 없는 상한.
+  const CONCURRENCY = 3;
+  const entries = Object.entries(weekMap);
+  const outcomes: Outcome[] = [];
+  for (let i = 0; i < entries.length; i += CONCURRENCY) {
+    const batch = entries.slice(i, i + CONCURRENCY);
+    const batchOutcomes = await Promise.all(batch.map(runOne));
+    outcomes.push(...batchOutcomes);
+  }
 
   const result: MirrorResult = {
     schoolId: school.id,
