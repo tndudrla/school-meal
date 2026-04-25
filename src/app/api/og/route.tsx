@@ -3,6 +3,7 @@ import { fetchMealFromNeis } from '@/lib/neis';
 import { getSchool } from '@/lib/schools';
 import { getMirroredPhotoUrl } from '@/lib/photoMirror';
 import { parseYmd, formatDate, DOW } from '@/lib/utils';
+import { loadPretendardFonts } from '@/lib/og-fonts';
 
 export const runtime = 'nodejs';
 
@@ -18,6 +19,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawYmd = searchParams.get('ymd');
   const rawSchoolId = searchParams.get('schoolId');
+
+  // 한글 폰트 (Stage 11-1) — Pretendard. 실패 시 빈 배열 → sans-serif 폴백.
+  const fonts = await loadPretendardFonts();
 
   // 대표 URL 진입 (학교·날짜 미지정) — 사이트 일반 카드. NEIS 도 미러도 안 침.
   // Stage 9 — page.tsx 의 isPlainEntry 분기와 짝.
@@ -35,7 +39,7 @@ export async function GET(request: Request) {
             backgroundColor: '#FFFBEB',
             backgroundImage:
               'repeating-linear-gradient(45deg, #FFEFD0 0, #FFEFD0 18px, #FDD5B8 18px, #FDD5B8 19px)',
-            fontFamily: 'sans-serif',
+            fontFamily: 'Pretendard, sans-serif',
           }}
         >
           <div style={{ fontSize: 240, marginBottom: 20 }}>🍱</div>
@@ -61,7 +65,7 @@ export async function GET(request: Request) {
           </div>
         </div>
       ),
-      { width: 1200, height: 630 }
+      { width: 1200, height: 630, fonts }
     );
     return new Response(plain.body, {
       status: plain.status,
@@ -112,7 +116,7 @@ export async function GET(request: Request) {
           height: '100%',
           display: 'flex',
           backgroundColor: '#FFFBEB',
-          fontFamily: 'sans-serif',
+          fontFamily: 'Pretendard, sans-serif',
         }}
       >
         {/* 좌측: 패턴 배경 + 도시락 이모지 (사진 없는 날의 폴백 카드) */}
@@ -232,6 +236,7 @@ export async function GET(request: Request) {
     {
       width: 1200,
       height: 630,
+      fonts,
     }
   );
 

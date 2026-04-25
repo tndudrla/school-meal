@@ -128,14 +128,22 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
   const normalizedQuery = query.trim().toLowerCase();
   const isSearching = normalizedQuery.length > 0;
 
-  // 검색 결과 — 학교명·region 어느 쪽이든 매치
+  // 검색 결과 — 학교명·region·별칭(접미사 떼낸 짧은 이름) 어느 쪽이든 매치.
+  // 예: '양정' → '군포양정초등학교' 매치. '의왕부곡' / '부곡' 둘 다 매치.
   const searchResults = useMemo(() => {
     if (!isSearching) return [];
-    return all.filter(
-      (s) =>
-        s.name.toLowerCase().includes(normalizedQuery) ||
-        s.region.toLowerCase().includes(normalizedQuery)
-    );
+    return all.filter((s) => {
+      const haystacks = [
+        s.name,
+        s.region,
+        // '초등학교' / '초' / '중학교' / '고등학교' 접미사 제거한 짧은 이름
+        s.name.replace(/(초등학교|중학교|고등학교|초|중|고)$/, ''),
+        // region 의 시·군 prefix 떼낸 짧은 이름 (예: '군포양정초' 에서
+        // '양정' 으로 검색하는 케이스)
+        s.name.replace(/^(군포|의왕|안양|과천|서울|경기)/, ''),
+      ];
+      return haystacks.some((h) => h.toLowerCase().includes(normalizedQuery));
+    });
   }, [all, normalizedQuery, isSearching]);
 
   // region 별 그룹핑 (학교 수 늘어나도 자연 확장)

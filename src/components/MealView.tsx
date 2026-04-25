@@ -6,6 +6,7 @@ import MealCard from '@/components/MealCard';
 import SchoolSwitcher from '@/components/SchoolSwitcher';
 import WeekExportButton from '@/components/WeekExportButton';
 import InstallPrompt from '@/components/InstallPrompt';
+import SharedLinkBanner from '@/components/SharedLinkBanner';
 import {
   getWeekDatesByOffset,
   formatDate,
@@ -211,10 +212,23 @@ export default function MealView({ initialYmd, schoolId }: Props) {
       />
 
       {loading ? (
-        <div className="text-center py-15 font-['Hi_Melody'] text-xl text-stone-500">
-          <span className="inline-block text-4xl animate-[spin_1.2s_ease-in-out_infinite] mb-2">🍱</span>
-          <br />
-          맛있는 메뉴 가져오는 중...
+        // 카드 모양 스켈레톤 — 실제 MealCard 와 같은 크기로 깜빡임 최소화
+        <div className="mx-5 mb-5 bg-amber-50 border-2 border-amber-200 rounded-3xl overflow-hidden shadow-[0_4px_0_#E5D2A8]">
+          <div className="aspect-[4/3] bg-amber-100 animate-pulse flex items-center justify-center">
+            <span className="text-4xl opacity-30">🍱</span>
+          </div>
+          <div className="p-5">
+            <div className="h-6 w-32 bg-amber-200/60 rounded animate-pulse mb-4" />
+            <div className="flex flex-col gap-2.5">
+              {[40, 64, 52, 56, 44].map((w, i) => (
+                <div
+                  key={i}
+                  className="h-5 bg-amber-200/50 rounded animate-pulse"
+                  style={{ width: `${w}%` }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       ) : error ? (
         <div className="mx-5 p-5 bg-orange-100 border-2 border-dashed border-orange-500 rounded-2xl text-center">
@@ -231,6 +245,8 @@ export default function MealView({ initialYmd, schoolId }: Props) {
           getShareUrl={getShareUrl}
         />
       )}
+
+      <SharedLinkBanner schoolId={schoolId} schoolName={school.name} />
 
       <div className="mx-5 p-4 bg-amber-100 rounded-2xl text-xs text-stone-600 leading-relaxed border border-dashed border-amber-200">
         <strong className="text-orange-500 font-['Gaegu']">📸 사진 안내</strong>

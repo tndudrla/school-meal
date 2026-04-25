@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const HINT_KEY = 'sawWeekExportHint';
 
 interface Props {
   schoolId: string;
@@ -25,9 +27,28 @@ export default function WeekExportButton({
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [showHint, setShowHint] = useState(false);
+
+  // 첫 방문자에게 한 번만 "주간 식단표를 이미지로 받을 수 있어요" 풍선.
+  // 클릭하거나 export 한 번 하면 dismissed 처리.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.localStorage.getItem(HINT_KEY) === '1') return;
+    // 1.5초 후 잠깐 노출 (페이지 로드 직후엔 사용자 시선이 메뉴 카드)
+    const t = setTimeout(() => setShowHint(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
+
+  function dismissHint() {
+    setShowHint(false);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(HINT_KEY, '1');
+    }
+  }
 
   async function handleExport() {
     if (busy) return;
+    dismissHint();
     setBusy(true);
     try {
       const res = await fetch(
@@ -83,6 +104,18 @@ export default function WeekExportButton({
 
   return (
     <>
+      <div className="relative">
+        {/* 첫 방문 안내 풍선 — 한 번만 노출 */}
+        {showHint && (
+          <button
+            type="button"
+            onClick={dismissHint}
+            className="absolute right-0 top-full mt-2 z-20 whitespace-nowrap text-xs bg-stone-900/90 text-amber-50 px-3 py-1.5 rounded-full font-['Gaegu'] shadow-lg animate-[fadeIn_0.2s_ease-out]"
+            aria-label="안내 닫기"
+          >
+            ⬆ 주간 식단표 받기
+          </button>
+        )}
       <button
         onClick={handleExport}
         disabled={busy}
@@ -110,11 +143,13 @@ export default function WeekExportButton({
           </svg>
         )}
       </button>
+      </div>
 
       {toast && (
         <div
           role="status"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900/90 text-amber-50 text-sm px-4 py-2 rounded-full font-['Gaegu'] shadow-lg z-50 max-w-[90vw] text-center animate-[fadeIn_0.15s_ease-out]"
+          style={{ bottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem))' }}
+          className="fixed left-1/2 -translate-x-1/2 bg-stone-900/90 text-amber-50 text-sm px-4 py-2 rounded-full font-['Gaegu'] shadow-lg z-50 max-w-[90vw] text-center animate-[fadeIn_0.15s_ease-out]"
         >
           {toast}
         </div>

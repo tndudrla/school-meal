@@ -25,6 +25,7 @@ import {
   DOW,
 } from '@/lib/utils';
 import { formatAllergyNames } from '@/lib/allergies';
+import { loadPretendardFonts } from '@/lib/og-fonts';
 import type { Meal } from '@/types/meal';
 
 export const runtime = 'nodejs';
@@ -58,6 +59,9 @@ export async function GET(request: Request) {
   const weekDates = getWeekDatesByOffset(offset);
   const weekRange = formatWeekRange(weekDates);
 
+  // 한글 폰트 (Stage 11-1) — Pretendard. 실패 시 빈 배열 → sans-serif 폴백.
+  const fontsPromise = loadPretendardFonts();
+
   // 월~금 병렬 fetch — 캐시 hit 면 즉시 반환 (revalidate: 3600)
   const meals = await Promise.all(
     weekDates.map((d) =>
@@ -79,7 +83,7 @@ export async function GET(request: Request) {
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: COLOR.bg,
-          fontFamily: 'sans-serif',
+          fontFamily: 'Pretendard, sans-serif',
           padding: '70px 80px',
           color: COLOR.text,
         }}
@@ -219,7 +223,7 @@ export async function GET(request: Request) {
         </div>
       </div>
     ),
-    { width: WIDTH, height: HEIGHT }
+    { width: WIDTH, height: HEIGHT, fonts: await fontsPromise }
   );
 
   return new Response(response.body, {

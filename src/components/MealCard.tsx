@@ -41,6 +41,7 @@ export default function MealCard({
   const date = parseYmd(ymd);
   const dateLabel = `${date.getMonth() + 1}월 ${date.getDate()}일 (${DOW[date.getDay()]})`;
   const [toast, setToast] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState(false);
 
   async function handleShare() {
     if (typeof window === 'undefined') return;
@@ -107,8 +108,15 @@ export default function MealCard({
     <div className="mx-5 mb-5 bg-amber-50 border-2 border-amber-200 rounded-3xl overflow-hidden shadow-[0_4px_0_#E5D2A8] animate-[cardIn_0.4s_cubic-bezier(0.34,1.56,0.64,1)]">
       <div className="aspect-[4/3] relative bg-[repeating-linear-gradient(45deg,#FFEFD0_0,#FFEFD0_12px,#FDD5B8_12px,#FDD5B8_13px)] flex items-center justify-center">
         {photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photoUrl} alt={mainDish} className="w-full h-full object-cover" />
+          <button
+            type="button"
+            onClick={() => setLightbox(true)}
+            className="w-full h-full"
+            aria-label="사진 크게 보기"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoUrl} alt={mainDish} className="w-full h-full object-cover" />
+          </button>
         ) : (
           <>
             <span className="absolute top-3 left-3 bg-stone-800 text-amber-50 text-xs px-2.5 py-1 rounded-full font-['Gaegu'] font-bold tracking-wider">
@@ -189,9 +197,37 @@ export default function MealCard({
       {toast && (
         <div
           role="status"
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900/90 text-amber-50 text-sm px-4 py-2 rounded-full font-['Gaegu'] shadow-lg z-50 max-w-[90vw] text-center animate-[fadeIn_0.15s_ease-out]"
+          // bottom-6 + safe-area-inset-bottom — 아이폰 홈 인디케이터/안드 제스처
+          // 바와 겹치지 않도록 보정. PWA standalone 모드에서 더 중요.
+          style={{ bottom: 'max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem))' }}
+          className="fixed left-1/2 -translate-x-1/2 bg-stone-900/90 text-amber-50 text-sm px-4 py-2 rounded-full font-['Gaegu'] shadow-lg z-50 max-w-[90vw] text-center animate-[fadeIn_0.15s_ease-out]"
         >
           {toast}
+        </div>
+      )}
+
+      {/* 사진 lightbox — 탭하면 전체화면, 다시 탭하면 닫힘 */}
+      {lightbox && photoUrl && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="급식 사진 크게 보기"
+          onClick={() => setLightbox(false)}
+          className="fixed inset-0 z-50 bg-stone-900/90 backdrop-blur-sm flex items-center justify-center p-4 animate-[fadeIn_0.15s_ease-out] cursor-zoom-out"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photoUrl}
+            alt={mainDish}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+          />
+          <button
+            onClick={() => setLightbox(false)}
+            aria-label="닫기"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-stone-900/60 text-amber-50 text-2xl leading-none flex items-center justify-center hover:bg-stone-900/80"
+          >
+            ×
+          </button>
         </div>
       )}
     </div>

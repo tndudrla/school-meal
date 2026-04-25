@@ -23,15 +23,22 @@ export default function WeekPicker({ dates, selectedYmd, onSelect }: Props) {
             key={ymd}
             onClick={() => onSelect(ymd)}
             className={`
-              flex-shrink-0 min-w-[56px] px-1 py-2.5 rounded-2xl border-2 text-center
+              relative flex-shrink-0 min-w-[56px] px-1 py-2.5 rounded-2xl border-2 text-center
               font-['Gaegu'] transition-all
               ${isActive
                 ? 'bg-orange-500 border-orange-500 text-white -translate-y-0.5 shadow-[0_2px_0_#D4BC93]'
                 : isToday
-                ? 'bg-yellow-300 border-yellow-300 text-stone-800'
+                ? 'bg-yellow-300 border-yellow-400 text-stone-800 ring-2 ring-yellow-400/40 ring-offset-1'
                 : 'bg-amber-50 border-amber-200 text-stone-800'}
             `}
           >
+            {/* 오늘 표시 — 칸 우상단 작은 빨간 점. active 일 때도 보이게 */}
+            {isToday && (
+              <span
+                aria-label="오늘"
+                className="absolute top-1 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500"
+              />
+            )}
             <span
               className={`block text-xs mb-1.5 ${isActive ? '' : 'text-stone-500'}`}
             >

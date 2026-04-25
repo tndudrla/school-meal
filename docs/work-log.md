@@ -1188,3 +1188,78 @@ Stage 9 에서 manifest + apple-icon + appleWebApp 까지 깔아둬 PWA 인프�
 - **푸시 알림 권한** — 별 Stage. 지금은 install 만
 - **Service Worker (오프라인 캐싱)** — 별 Stage
 - **닫기 후 일정 시간 뒤 재노출** — 닫음 = 영구 닫음. 재표시는 사용자 짜증
+
+---
+
+## Stage 11-1 ~ 11-8 — 가벼운 미세 개선 묶음 (2026-04-26)
+
+8개 작은 개선을 한 묶음으로. 각각 단독 Stage 만큼 큰 결정 없음.
+나머지 미실행 후보는 `docs/backlog.md` 로 분리 관리.
+
+### 11-1. PNG 한국어 폰트 임베드 (Pretendard)
+
+`next/og` ImageResponse 의 satori 가 시스템 폰트 못 읽는 케이스 보험.
+기존 OG 카드는 잘 보였으나 환경에 따라 깨질 위험. Pretendard otf 를
+jsdelivr CDN 에서 fetch (next fetch 캐시 1일) → ArrayBuffer 로 fonts 옵션.
+
+- `src/lib/og-fonts.ts` 신규 — Regular/Bold 둘 다 로드, in-memory 캐시
+- og 라우트·week 라우트 둘 다 적용
+- 폰트 fetch 실패 시 빈 배열 → 자동 sans-serif 폴백 (이미지 자체는 동작)
+- fontFamily 를 `'Pretendard, sans-serif'` 로 (Pretendard 없으면 sans-serif)
+
+### 11-2. 사진 클릭 → 전체 화면 lightbox
+
+기존 카드의 작은 사진 → 탭하면 화면 전체로 확대. 다시 탭/X 누르면 닫기.
+
+- `MealCard.tsx` 의 `<img>` 를 `<button>` 으로 감싸 클릭 핸들러
+- `lightbox` state + 모달 (z-50, backdrop blur)
+
+### 11-3. 토스트 위치 safe-area 보정
+
+`fixed bottom-6` 만으로는 아이폰 홈 인디케이터·안드 제스처 바와 겹침
+가능성. PWA standalone 모드에선 더 자주.
+
+- `bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem))`
+- `MealCard.tsx`, `WeekExportButton.tsx` 둘 다 적용
+
+### 11-4. 로딩 스켈레톤
+
+기존: `🍱 맛있는 메뉴 가져오는 중...` 텍스트 → 카드 깜빡임 거슬림.
+변경: 실제 카드와 같은 크기의 회색 박스 + 메뉴 라인 5개 (animate-pulse).
+
+### 11-5. 공유 링크 진입 시 즐겨찾기 빠른 추가
+
+URL 에 schoolId 가 있고(공유 받음) 그 학교가 favorites 에 없으면 작은
+배너로 "즐겨찾기에 추가할까요?" 한 번 안내.
+
+- `SharedLinkBanner.tsx` 신규
+- localStorage `sharedLinkBanner:<schoolId>` 로 학교별 닫기 기억
+  (다른 학교 공유 받으면 또 뜸)
+- 위치: 사진 안내 박스 위 (URL 진입 케이스라 일찍 노출)
+
+### 11-6. 학교 검색 별칭 매칭
+
+기존: `name` + `region` 단순 includes 만 — '양정' 검색해도 '군포양정초'
+못 찾는 경우 있음.
+
+조치: 학교명에서 '초등학교/중학교/고등학교/초/중/고' 접미사,
+'군포/의왕/안양/과천/서울/경기' prefix 떼낸 별칭으로도 매칭.
+
+### 11-7. 요일 탭 오늘 표시 강화
+
+기존: 노란 배경만 — 주말에 봤을 때 오늘 위치 즉시 안 보임.
+조치: 우상단 작은 빨간 점 + ring-2 ring-yellow-400/40 ring-offset-1.
+active 일 때도 빨간 점 보임 (오늘 = 동시에 active 가능).
+
+### 11-8. 첫 방문자 주간 식단표 안내 풍선
+
+WeekExportButton 옆에 1.5초 후 작은 풍선 한 번. localStorage
+`sawWeekExportHint` 기록 → 한 번 보거나 export 한 번 하면 다시 안 뜸.
+
+### 변경 파일 요약
+
+- 신규: `src/lib/og-fonts.ts`, `src/components/SharedLinkBanner.tsx`
+- 수정: `MealCard.tsx`, `MealView.tsx`, `WeekPicker.tsx`,
+  `WeekExportButton.tsx`, `SchoolSwitcher.tsx`, `og/route.tsx`,
+  `week/route.tsx`
+- 신규 doc: `docs/backlog.md` (남은 미실행 후보들)
