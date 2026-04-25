@@ -44,3 +44,5 @@ next-env.d.ts
 화면 캡처 *.png
 스크린샷 *.png
 *.scratch.*
+KakaoTalk_*.jpg
+KakaoTalk_*.png
