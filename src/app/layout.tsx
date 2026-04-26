@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 // 브라우저 탭/즐겨찾기에 보이는 고정 제목. 학교·날짜 무관하게 항상 같음
@@ -48,6 +49,7 @@ export default function RootLayout({
         style={{ fontFamily: "'Gowun Dodum', sans-serif" }}
       >
         <div className="max-w-[480px] mx-auto pb-20">{children}</div>
+        <Analytics />
       </body>
     </html>
   );
