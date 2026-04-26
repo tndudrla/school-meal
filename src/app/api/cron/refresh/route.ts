@@ -9,9 +9,10 @@ import {
   pruneOldPhotos,
 } from '@/lib/photoMirror';
 
-// 학교 사진(5MB+) 다운로드가 학교 서버에서 느려 기본 10초 한도로는 부족.
-// Vercel Hobby 플랜의 최대값 60초로 명시.
-export const maxDuration = 60;
+// Vercel Pro 플랜으로 업그레이드되어 maxDuration 한도가 800초까지 확장.
+// 76교 × 평균 3초면 4분 안에 충분히 끝남. 안전 여유로 300 명시.
+// (Stage 13-4: Hobby 60초에서 청크 분할/budget 가드/wall time 가드 다 제거.)
+export const maxDuration = 300;
 
 /**
  * 주기적으로 NEIS 메뉴 + 학교 홈페이지 사진을 미리 불러와 캐시를 데움.
@@ -49,18 +50,9 @@ export async function GET(request: NextRequest) {
   const yesterdayYmd = formatDate(yesterday);
 
   const mirrorOn = isMirrorEnabled();
+  const startedAt = Date.now();
 
-  // 학교당 wall time 가드. (Stage 13-2) 청크 budget 가드만으로는 한 학교가
-  // 30초+ 잡아 청크 자체를 늦추는 사고 발생 → 504. 학교당 8초 cap 으로 강제 종료.
-  // 못 끝낸 학교는 다음 cron 회차에서 select-existing 우회 후 재시도.
-  const PER_SCHOOL_BUDGET_MS = 8_000;
-  const sleep = (ms: number) =>
-    new Promise<{ timedOut: true }>((resolve) =>
-      setTimeout(() => resolve({ timedOut: true }), ms)
-    );
-
-  // 학교 한 개를 처리하는 작업. 청크 분할 전후 동일 로직이라 함수로 추출.
-  const processSchoolInner = async (school: ReturnType<typeof listSchools>[number]) => {
+  const processSchool = async (school: ReturnType<typeof listSchools>[number]) => {
     const result: Record<string, unknown> = { schoolId: school.id };
 
     // 1. NEIS 메뉴 오늘 + 내일 워밍
@@ -106,61 +98,18 @@ export async function GET(request: NextRequest) {
     return result;
   };
 
-  // wall time 8초 가드로 감싸기. 한 학교가 학교 서버 느려서 30초+ 잡으면
-  // 같은 청크의 다른 학교까지 같이 늦어져 함수 한도 hit. 8초 넘으면 그 학교는
-  // timedOut 마크하고 다음 학교에 시간 양보. select-existing 덕에 다음 회차에서 즉시 skip.
-  const processSchool = async (
-    school: ReturnType<typeof listSchools>[number]
-  ): Promise<Record<string, unknown>> => {
-    const raced = await Promise.race([
-      processSchoolInner(school),
-      sleep(PER_SCHOOL_BUDGET_MS),
-    ]);
-    if ('timedOut' in raced && raced.timedOut === true) {
-      return { schoolId: school.id, timedOut: true };
-    }
-    return raced as Record<string, unknown>;
-  };
-
-  // 76교를 한 번에 Promise.all 로 돌리면 학교당 wall time 이 함수 한도(60s)에
-  // 균등 분할돼 학교 서버 응답이 조금만 느려도 다운로드가 잘려나간다.
-  // (Stage 13 진단: bisan 등 다수 학교 미러가 7장 중 1~3장만 들어옴.)
-  // 청크로 쪼개면 한 번에 N교만 동시 처리 → 학교당 wall time 확보.
-  //
-  // 한 회차에 못 끝내는 청크는 50초 근처에서 스킵하고 응답 반환.
-  // 다음 cron 회차(또는 수동 Run) 가 이어받음. select-existing 로직 덕에
-  // 이미 미러된 학교/날짜는 다음 회차에서 즉시 skip 되어 남은 학교에 시간 양보.
-  // (Stage 13-2: 첫 회차 504 timeout 사고 처방.)
-  const FUNCTION_BUDGET_MS = 50_000; // 60초 한도 - 안전 여유 10초
-  const startedAt = Date.now();
-  const schools = listSchools();
-  const CHUNK_SIZE = 5;
-  const perSchool: Awaited<ReturnType<typeof processSchool>>[] = [];
-  let skipped = 0;
-  for (let i = 0; i < schools.length; i += CHUNK_SIZE) {
-    if (Date.now() - startedAt > FUNCTION_BUDGET_MS) {
-      skipped = schools.length - i;
-      break;
-    }
-    const chunk = schools.slice(i, i + CHUNK_SIZE);
-    const results = await Promise.all(chunk.map(processSchool));
-    perSchool.push(...results);
-  }
+  // Pro 플랜 maxDuration 300초 한도 안에서 76교를 Promise.all 로 한 번에 처리.
+  // 학교당 다운로드 timeout 15초 + sharp/upload 가 동시 실행되어도 충분히 여유.
+  const perSchool = await Promise.all(listSchools().map(processSchool));
 
   // 4. 슬라이딩 윈도우 cleanup (전 학교 공통, 키 있을 때만)
-  // 시간 빠듯하면 prune 도 스킵 — 다음 회차에서 처리.
-  const remainingMs = FUNCTION_BUDGET_MS - (Date.now() - startedAt);
-  const prune =
-    mirrorOn && remainingMs > 5_000
-      ? await pruneOldPhotos(ymd)
-      : { enabled: mirrorOn, pruned: 0, skipped: true };
+  const prune = mirrorOn ? await pruneOldPhotos(ymd) : { enabled: false, pruned: 0 };
 
   return NextResponse.json({
     triggeredAt: new Date().toISOString(),
     ymd,
     mirrorEnabled: mirrorOn,
     elapsedMs: Date.now() - startedAt,
-    skippedSchools: skipped,
     schools: perSchool,
     prune,
   });

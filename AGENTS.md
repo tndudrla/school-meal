@@ -16,7 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Next.js 16 (App Router, Turbopack, `runtime = 'nodejs'`)
 - TypeScript, Tailwind CSS v4 (`@import "tailwindcss"`)
 - Supabase (Storage 미러 + meal_photos 테이블)
-- Vercel (Hobby 플랜 — 함수 maxDuration 60s 한도)
+- Vercel (Pro 플랜 — 함수 maxDuration 800s 한도. 2026-04-26 Hobby 60s 에서 업그레이드)
 
 ### 학교 추가는 한 곳만 건드린다
 
@@ -46,10 +46,12 @@ Settings → Cron Jobs → `/api/cron/refresh` 의 `Run` 버튼). 새 학교의 
 
 ### 미러 파이프라인의 운영 제약
 
-- Vercel Hobby 60s 함수 한도 안에 끝나야 함 → 다운로드는 `Promise.all` 병렬
+- Vercel Pro 800s 함수 한도 — 76교 Promise.all 한 번에 충분히 끝남
 - sharp 로 1280px / JPEG q=80 으로 리사이즈 (5MB → ~150KB, 97% 절감)
 - 슬라이딩 윈도우 7일 — 이전 사진은 cron 마다 prune
 - `SUPABASE_SERVICE_ROLE_KEY` 가 없으면 모든 미러 함수가 no-op (피처 플래그)
+- 학교당 동시 다운로드 5장 (`photoMirror.ts:CONCURRENCY`) + 다운로드 timeout 15초.
+  Pro 한도 여유와 별개로 학교 서버 부담 완화 차원에서 유지.
 
 ### 의사결정은 work-log 에 남긴다
 

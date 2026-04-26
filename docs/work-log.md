@@ -56,6 +56,7 @@
 - [Stage 13-1 — 일요일 cron 의 다음 주 페이지 fetch 버그](#stage-13-1--일요일-cron-의-다음-주-페이지-fetch-버그-2026-04-26) — ymd 어제 기준으로
 - [Stage 13-2 — cron 504 timeout 처방](#stage-13-2--cron-504-timeout-처방-2026-04-26) — 50초 budget + 청크 5 + skip 누적
 - [Stage 13-3 — 학교당 8초 wall time 가드](#stage-13-3--학교당-8초-wall-time-가드-2026-04-26) — 13-2 후 또 504. 청크 안에서 한 학교가 길게 잡는 문제
+- [Stage 13-4 — Vercel Pro 업그레이드 + 처방 단순화](#stage-13-4--vercel-pro-업그레이드--처방-단순화-2026-04-26) — 60s → 800s 한도. 청크/budget/wall time 가드 다 제거
 
 ### 군포 학교 추가 (별도 커밋, 2026-04-26)
 경기 군포 13개 초등학교 등록 (군포의왕 통합 교육청). 단순 데이터 추가라
@@ -1712,3 +1713,68 @@ const processSchool = async (school) => {
 ### 변경 파일
 
 - `src/app/api/cron/refresh/route.ts` — sleep, processSchoolInner / processSchool 분리
+
+---
+
+## Stage 13-4 — Vercel Pro 업그레이드 + 처방 단순화 (2026-04-26)
+
+### 발단
+
+13-3 까지 적용해도 Hobby 60초 한도 안에서 76교를 한 번에 미러하기 빠듯.
+3 cron 회차 누적 디자인이 작동은 하지만 첫 회차에 채울 수 있는 학교 수가
+30교 수준이라 신규 학교 추가 직후 기다림이 길어지는 단점.
+
+사용자 결정: **Vercel Pro $20/월 결제**. 함수 maxDuration 60s → 800s 로
+8배 이상 확장. 청크/budget/wall time 가드 다 제거 가능.
+
+### 처방 — 13~13-3 의 가드 다 되돌리기
+
+`src/app/api/cron/refresh/route.ts`:
+- `maxDuration` 60 → **300** (Pro 한도 800 안에서 안전 여유)
+- `Promise.all(listSchools().map(processSchool))` 한 번에 76교 처리
+- 청크 분할 / FUNCTION_BUDGET_MS / PER_SCHOOL_BUDGET_MS / sleep / Promise.race 제거
+- 응답 JSON 의 `skippedSchools` 제거 (스킵 안 됨)
+
+`AGENTS.md`:
+- "Vercel Hobby — 함수 maxDuration 60s 한도" → "Vercel Pro — maxDuration 800s 한도"
+- 미러 파이프라인 운영 제약 표기 갱신
+
+`src/lib/photoMirror.ts` 는 그대로 유지:
+- 다운로드 timeout 15초 — Pro 한도 여유와 별개로 한 장 끊김 가드
+- CONCURRENCY 5 — 학교 서버 부담 완화
+
+### 비용·이익 분석
+
+| 항목 | Hobby (60s) | Pro (800s, $20/월) |
+|---|---|---|
+| 첫 sweep 한 회차 | 30~40교 | **76교 전부** |
+| 코드 복잡도 | 청크/budget/wall time 가드 (50줄+) | Promise.all 한 줄 |
+| 신규 학교 즉시 미러 | 다음 cron 회차 대기 | **즉시** |
+| 6000교 확장 시 | 부족 | 700~800교까지 안전 |
+| 운영자 비용 | 0 | $20/월 |
+
+비영리 운영 방향성 (광고/결제/유료 등록 X) 과는 별개. 운영 비용을 운영자가
+부담하기로 결정.
+
+### 의도적으로 안 한 것
+
+- **maxDuration 800 까지 늘림** — 300 으로 충분. 800 잡으면 의도치 않은
+  무한 루프나 학교 서버 응답 안 올 때 더 길게 잡혀 다음 cron 과 겹칠 가능성
+- **photoMirror.ts 의 timeout/CONCURRENCY 원복** — 학교 서버 부담 완화는 Pro
+  와 무관하게 유효. 1만교 가도 학교당 동시 5요청은 안전 상한
+- **Pro 한도 활용한 더 잦은 cron** — 하루 3회로 충분. 더 늘리면 학교 서버 부담만 ↑
+
+### 변경 파일
+
+- `src/app/api/cron/refresh/route.ts` — 100줄 → 50줄 단순화
+- `AGENTS.md` — Pro 표기 + 미러 운영 제약 갱신
+
+### 교훈
+
+- **돈으로 해결되는 문제는 돈으로**. 13~13-3 의 코드 복잡도 50줄+ 이 월 $20
+  보다 비용 큼 (디버깅 시간, 신규 학교 추가 시 기다림). 비영리라도 운영
+  비용은 별도 결정 가능
+- **확장 가능성을 고려한 결정**: 6000교 가면 무조건 Pro 필요. 미리 도입하면
+  6000교 확장 시 코드 변경 0
+- 13~13-3 의 진단 노트는 **Pro 다운그레이드 시 복원 가이드** 로 살아있음.
+  미래에 Pro 비용 부담 커지면 이 처방으로 돌아갈 수 있음
