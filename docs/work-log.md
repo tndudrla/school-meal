@@ -68,6 +68,9 @@
 경기 군포 13개 초등학교 등록 (군포의왕 통합 교육청). 단순 데이터 추가라
 별 Stage 항목은 없음. 커밋 6b1466a 참고.
 
+### 지역 확장 (Stage 14 시리즈, 2026-04-27 ~ )
+- [Stage 14 — 서울 서초구 24교 (메뉴 only)](#stage-14--서울-서초구-24교-메뉴-only-2026-04-27) — 첫 다른 시도(B10) 확장, NEIS 메뉴만 (사진 scraper 분리)
+
 ---
 
 ## 2026-04-25 — [Stage 1] OG 사진 임베드 제거 (카톡 타임아웃 영구 해결)
@@ -1897,3 +1900,86 @@ const processSchool = async (school) => {
   6000교 확장 시 코드 변경 0
 - 13~13-3 의 진단 노트는 **Pro 다운그레이드 시 복원 가이드** 로 살아있음.
   미래에 Pro 비용 부담 커지면 이 처방으로 돌아갈 수 있음
+
+---
+
+## Stage 14 — 서울 서초구 24교 (메뉴 only) (2026-04-27)
+
+### 발단
+
+지금까지 76교 모두 경기도(J10) `*.goeay.kr` / `*.goegu.kr` 한 도메인. 북극성
+(전국 확장) 의 첫 발걸음으로 **다른 시도** 가 필요. 사용자 침투율·피드백
+수집을 고려해 **서울 서초구** 를 스파이크 학구로 선택 (강남 33교 대비 작아
+빠른 검증 가능, 활성 학부모 인구).
+
+backlog `D. 다른 시도 교육청 학교 추가` 가 정확히 이 작업.
+
+### 발견 — 서울 학교 사이트는 경기도와 완전 다름
+
+| 영역 | 경기도 | 서울 |
+|---|---|---|
+| NEIS ATPT | J10 | **B10** |
+| 학교 도메인 | `*.goeay.kr` / `*.goegu.kr` | `*.sen.es.kr` (대부분), 사립은 `*.es.kr` |
+| 메뉴 페이지 | `selectFoodMenuView.do` POST 폼 (주 단위 7일 한 번) | `subMenu.do` 캘린더 (월 단위) |
+| 사진 위치 | tbody 중식 td 안에 직접 `<img src="/upload/...">` | `fnDetail()` AJAX 클릭 → ckeditor 본문 |
+
+→ 현 `schoolScraper.ts` 그대로 못 씀. 사진까지 한 번에 가면 작업 면적 너무
+커지고 디버깅 길어질 위험. **메뉴(NEIS) 만 우선 등록**, 사진 scraper 는
+Stage 14-1 로 분리하기로 결정 (사용자 선택).
+
+### 결정
+
+- **사진 미러 미포함** — 24교 모두 `scrape` 필드 생략. 기존 코드가
+  자연스럽게 처리 (cron `if (school.scrape)` 가드, photo route 폴백 흐름)
+- **NEIS 키 일회 발급** (https://open.neis.go.kr) — 빌드 스크립트 일회용,
+  Vercel env 등록 안 함. 운영 cron 은 무키 그대로 (한도 충분)
+- **id prefix `seoul_`** — 다른 시도 학교와 명확히 구분, JS 식별자 안전
+  (하이픈 회피), 충돌 0. 24교 모두 `seoul_<base>` 형태 (예: `seoul_seocho`,
+  `seoul_banpo`)
+- **dev 브랜치에서 진행** — main 머지는 베타 검증 후 별도 단계
+
+### 변경
+
+`scripts/build-school-config.mjs` — 다른 시도 지원:
+- `--atpt <코드>` 인자 신규 (default `J10` 호환)
+- `sysIdFromHost` 정규식에 `*.sen.es.kr` 추가
+- `regionFromAddress` 일반화 — `서울특별시 서초구 ...` → `서울 서초`
+- `buildOne` 이 sen.es 도메인 감지 시 mi 추출 시도 안 함 (어차피 미지원,
+  main.do 호출 1회 절약 + warning 메시지 명시적)
+
+`src/lib/schools.ts` — 서초구 24교 그룹 추가:
+- 23교 `sen.es.kr` 도메인 (NEIS 메뉴 정상)
+- 1교 `gyeseong1882.es.kr` (계성초, 사립계열 — `seoul_gyeseong`)
+- 모두 `scrape` 없음 → 사진 카드는 텍스트 폴백
+
+`docs/work-log.md` — 이 항목 누적.
+
+`schoolScraper.ts`, `photoMirror.ts`, `cron/refresh/route.ts`, UI 컴포넌트
+**모두 코드 변경 0** — 기존 가드(`if (school.scrape)`) 가 자연스럽게 처리.
+
+### 효과
+
+- 등록 학교 76 → **100교** (+ 24)
+- 첫 다른 시도(B10) 통과 — NEIS 호출 / region 표기 / 학교 검색 모두 동작
+- 빌드 스크립트가 시도 인자화돼 다음 자치구·시도 추가가 한 줄 명령으로 가능
+- cron 은 24교 NEIS 만 워밍, 사진 미러 단계는 자동 skip — 한 학교 1교 NEIS
+  2회 호출 × 24교 = 48 추가 호출. 무키 한도 1,000/일 여유 충분
+
+### 한계 / 후속
+
+- **사진 자리 텍스트 폴백** — 사용자 인지에 약간 미스. Stage 1·3 의 폴백
+  흐름 그대로지만 카톡 OG 풍성 카드는 안 나옴. Stage 14-1 에서 sen.es 사진
+  scraper 로 보완
+- **id 가 `seoul_seocho` 형태로 길어짐** — URL `?schoolId=seoul_seocho` 도
+  좀 길어짐. 즐겨찾기·공유 링크 쪽 영향 미미하지만 학교 추가 시 수동 prefix
+  부여 룰을 운영 가이드에 명문화 필요
+- **검색 별칭** — 사용자가 "서초" 만 입력해도 24교 다 잡히는지는 검증 필요.
+  아니면 별도 별칭 처리
+
+### Stage 14-1 예고 (다음 작업)
+
+- `src/lib/seoulSchoolScraper.ts` 신규 — sen.es.kr 캘린더 + AJAX 파서
+- `fnDetail` 응답에서 ckeditor 본문 사진 src 추출
+- `photoMirror.ts` 분기 또는 함수 주입 (`scrape.kind: 'goeay' | 'sen-es'`)
+- 24교 `scrape` 필드 일괄 갱신
+- 검증 후 main 머지 (Stage 14 + 14-1 묶음)

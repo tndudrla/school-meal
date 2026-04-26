@@ -24,7 +24,10 @@ import fs from 'node:fs/promises';
 // ----- 설정 ------------------------------------------------------------------
 
 const NEIS_BASE = 'https://open.neis.go.kr/hub/schoolInfo';
-const ATPT = 'J10'; // 경기도교육청. 다른 시도 추가 시 명시 필요.
+// ATPT 코드 (시도교육청). default J10 = 경기. --atpt 로 다른 시도 지정 가능.
+//   J10 경기, B10 서울, C10 부산, D10 대구, ...
+// 같은 빌드 실행은 단일 시도만 처리 (출력 region 도 그 시도 기준으로 고정).
+const DEFAULT_ATPT = 'J10';
 const NEIS_KEY = process.env.NEIS_API_KEY ?? '';
 const UA = 'Mozilla/5.0 (compatible; school-meal-build-script)';
 const FETCH_TIMEOUT_MS = 15000;
@@ -32,7 +35,7 @@ const FETCH_TIMEOUT_MS = 15000;
 // ----- 인자 파싱 ------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { mode: null, value: null };
+  const args = { mode: null, value: null, atpt: DEFAULT_ATPT };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--names') {
@@ -41,22 +44,30 @@ function parseArgs(argv) {
     } else if (a === '--city') {
       args.mode = 'city';
       args.value = argv[++i];
+    } else if (a === '--atpt') {
+      args.atpt = (argv[++i] ?? '').toUpperCase();
     } else if (a === '-h' || a === '--help') {
       printHelpAndExit(0);
     }
   }
   if (!args.mode || !args.value) printHelpAndExit(1);
+  if (!/^[A-Z]\d{2}$/.test(args.atpt)) {
+    console.error(`[error] --atpt 값이 잘못됨: ${args.atpt}. 예: J10, B10, C10`);
+    process.exit(2);
+  }
   return args;
 }
 
 function printHelpAndExit(code) {
   const out = code === 0 ? console.log : console.error;
   out(`사용법:
-  node scripts/build-school-config.mjs --names <파일경로>
+  node scripts/build-school-config.mjs [--atpt <코드>] --names <파일경로>
       한 줄에 한 학교명을 적은 텍스트 파일. NEIS 무키로도 동작.
 
-  node scripts/build-school-config.mjs --city <시이름>
+  node scripts/build-school-config.mjs [--atpt <코드>] --city <시이름>
       예: --city 의왕시. NEIS_API_KEY 환경변수 필요 (키 없으면 종료).
+
+  --atpt <코드>  시도교육청 코드. 미지정 시 J10 (경기). 예: B10 서울, C10 부산.
 `);
   process.exit(code);
 }
@@ -77,14 +88,19 @@ async function fetchWithTimeout(url, init = {}) {
   }
 }
 
-/** "경기도 의왕시 ..." → "경기 의왕" */
+/**
+ * "경기도 의왕시 ..." → "경기 의왕"
+ * "서울특별시 서초구 ..." → "서울 서초"
+ * 다른 광역시·도도 같은 패턴으로 처리.
+ */
 function regionFromAddress(addr) {
-  if (!addr) return '경기';
-  const m = addr.match(/^([가-힣]+?)도\s+([가-힣]+?시)/);
-  if (m) {
-    return `${m[1]} ${m[2].replace(/시$/, '')}`;
-  }
-  return '경기';
+  if (!addr) return '';
+  // 도/특별시/광역시/자치시 접미 제거 + 시/구/군 단위 한 단어 추출
+  const m = addr.match(
+    /^([가-힣]+?)(?:특별시|광역시|특별자치시|특별자치도|도)\s+([가-힣]+?)(?:시|구|군)/
+  );
+  if (m) return `${m[1]} ${m[2]}`;
+  return '';
 }
 
 /** HMPG_ADRES 응답에서 host 만 추출. 잡음 제거. */
@@ -98,21 +114,31 @@ function hostFromHmpg(raw) {
 }
 
 /**
- * host 가 경기교육청 학교 CMS 도메인이면 sysId 반환.
- * 관찰된 패턴: *-e.goeay.kr (과천 등), *.goegu.kr (의왕 등)
+ * host 가 학교 CMS 도메인이면 sysId 반환.
+ * 관찰된 패턴:
+ *   - *-e.goeay.kr (경기 안양/과천 등)
+ *   - *.goegu.kr  (경기 의왕/군포 등)
+ *   - *.sen.es.kr (서울 초등) — sysId 자리는 학교 약칭 (seocho, banpo 등)
+ *
+ * sen.es.kr 의 sysId 는 mi 추출 단계 (selectFoodMenuView.do) 에서 어차피
+ * 매치 안 됨 → buildOne 이 scrape 생략된 base 객체만 출력 (의도된 동작).
  */
 function sysIdFromHost(host) {
   if (!host) return null;
-  // host 의 첫 라벨이 sysId — 예: gwacheon-e.goeay.kr → gwacheon-e
-  //                              baekunhosucho.goegu.kr → baekunhosucho
-  const m = host.match(/^([a-z0-9-]+)\.(goeay|goegu)\.kr$/i);
-  return m ? m[1] : null;
+  // 경기 패턴
+  const ggn = host.match(/^([a-z0-9-]+)\.(goeay|goegu)\.kr$/i);
+  if (ggn) return ggn[1];
+  // 서울 sen.es.kr 패턴 (예: seocho.sen.es.kr → seocho)
+  const senEs = host.match(/^([a-z0-9-]+)\.sen\.es\.kr$/i);
+  if (senEs) return senEs[1];
+  return null;
 }
 
 /**
  * sysId 에서 학교 id (URL 친화 키) 생성.
  * - `-e` 접미 (goeay 패턴): chonggye-e → chonggye
  * - `cho` 접미 (goegu 패턴): naedongcho → naedong
+ * - 그 외 (서울 sen.es 등): 그대로 사용. id 충돌은 used set 으로 회피.
  */
 function idFromSysId(sysId) {
   return sysId.replace(/-e$/, '').replace(/cho$/, '');
@@ -120,12 +146,12 @@ function idFromSysId(sysId) {
 
 // ----- NEIS 조회 -------------------------------------------------------------
 
-async function neisQuery(searchTerm, page = 1) {
+async function neisQuery(searchTerm, page = 1, atpt = DEFAULT_ATPT) {
   const u = new URL(NEIS_BASE);
   u.searchParams.set('Type', 'json');
   u.searchParams.set('pSize', '100');
   u.searchParams.set('pIndex', String(page));
-  u.searchParams.set('ATPT_OFCDC_SC_CODE', ATPT);
+  u.searchParams.set('ATPT_OFCDC_SC_CODE', atpt);
   u.searchParams.set('SCHUL_NM', searchTerm);
   if (NEIS_KEY) u.searchParams.set('KEY', NEIS_KEY);
 
@@ -136,14 +162,14 @@ async function neisQuery(searchTerm, page = 1) {
   return data.schoolInfo?.[1]?.row ?? [];
 }
 
-async function neisSearchByName(name) {
+async function neisSearchByName(name, atpt = DEFAULT_ATPT) {
   // NEIS 두 가지 quirk:
   // 1. SCHUL_NM 풀네임 일치 시 0건 돌려주는 학교가 있음 (예: 백운호수초등학교)
   //    → 풀네임 실패 시 "초등학교" 떼고 키워드 폴백
   // 2. 무키 호출은 pSize/pIndex 가 강제 5 + 첫 페이지만 → 키워드 너무 흔하면
   //    상위 5건에 안 들어와 묻힘. 키 있으면 페이징, 없으면 풀네임 우선 전략
   // 전략: 풀네임 시도 → 빈 결과 시 키워드 폴백
-  const fullResults = await neisQuery(name);
+  const fullResults = await neisQuery(name, 1, atpt);
   if (fullResults.length > 0) return fullResults;
 
   const keyword = name.replace(/(초|중|고)등학교$/u, '');
@@ -153,7 +179,7 @@ async function neisSearchByName(name) {
   const collected = [];
   const maxPages = NEIS_KEY ? 20 : 1;
   for (let page = 1; page <= maxPages; page++) {
-    const rows = await neisQuery(keyword, page);
+    const rows = await neisQuery(keyword, page, atpt);
     if (rows.length === 0) break;
     collected.push(...rows);
     if (rows.length < 100) break;
@@ -161,7 +187,7 @@ async function neisSearchByName(name) {
   return collected;
 }
 
-async function neisSearchByCity(cityName) {
+async function neisSearchByCity(cityName, atpt = DEFAULT_ATPT) {
   if (!NEIS_KEY) {
     console.error(
       `[error] --city 모드는 NEIS_API_KEY 환경변수가 필요합니다.
@@ -177,7 +203,7 @@ async function neisSearchByCity(cityName) {
     u.searchParams.set('Type', 'json');
     u.searchParams.set('pSize', '1000');
     u.searchParams.set('pIndex', String(page));
-    u.searchParams.set('ATPT_OFCDC_SC_CODE', ATPT);
+    u.searchParams.set('ATPT_OFCDC_SC_CODE', atpt);
     u.searchParams.set('SCHUL_KND_SC_NM', '초등학교');
     u.searchParams.set('KEY', NEIS_KEY);
     const res = await fetchWithTimeout(u.toString());
@@ -232,7 +258,7 @@ async function fetchMiFromMain(host, sysId) {
 
 // ----- 학교 1개를 SchoolConfig 객체로 -------------------------------------
 
-async function buildOne(neisRow, used) {
+async function buildOne(neisRow, used, atpt = DEFAULT_ATPT) {
   const name = neisRow.SCHUL_NM;
   const schoolCode = neisRow.SD_SCHUL_CODE;
   const addr = neisRow.ORG_RDNMA;
@@ -259,14 +285,25 @@ async function buildOne(neisRow, used) {
     name,
     level: 'elementary',
     region,
-    neis: { atptCode: ATPT, schoolCode },
+    neis: { atptCode: atpt, schoolCode },
   };
 
   if (!host || !sysId) {
     return {
       skip: false,
       config: base,
-      warning: `host 가 *-e.goeay.kr 패턴 아님 (HMPG_ADRES=${neisRow.HMPG_ADRES ?? '없음'}) → scrape 생략`,
+      warning: `host 가 *-e.goeay.kr / *.goegu.kr / *.sen.es.kr 패턴 아님 (HMPG_ADRES=${neisRow.HMPG_ADRES ?? '없음'}) → scrape 생략`,
+    };
+  }
+
+  // 서울 sen.es.kr 은 캘린더 + AJAX 구조라 main.do 의 selectFoodMenuView.do
+  // 패턴이 없음. 시도하면 어차피 실패 → main.do 호출 1회 절약 + warning 도
+  // 명시적으로 "서울은 메뉴만" 메시지로.
+  if (/\.sen\.es\.kr$/i.test(host)) {
+    return {
+      skip: false,
+      config: base,
+      warning: `서울 sen.es.kr 도메인 — 사진 scraper 미지원 (Stage 14-1 예정) → scrape 생략, 메뉴만 노출`,
     };
   }
 
@@ -314,6 +351,8 @@ async function main() {
   const args = parseArgs(process.argv);
   const startedAt = Date.now();
 
+  console.error(`[info] ATPT=${args.atpt}`);
+
   let neisRows;
   if (args.mode === 'names') {
     const file = await fs.readFile(args.value, 'utf-8');
@@ -325,10 +364,10 @@ async function main() {
 
     neisRows = [];
     for (const name of names) {
-      const rows = await neisSearchByName(name);
-      // 정확히 학교명 일치 + ATPT J10 인 행만 채택
+      const rows = await neisSearchByName(name, args.atpt);
+      // 정확히 학교명 일치 + 지정 ATPT 인 행만 채택
       const exact = rows.filter(
-        (r) => r.SCHUL_NM === name && r.ATPT_OFCDC_SC_CODE === ATPT
+        (r) => r.SCHUL_NM === name && r.ATPT_OFCDC_SC_CODE === args.atpt
       );
       if (exact.length === 0) {
         console.error(`[warn] "${name}" — NEIS 정확 매치 없음, 스킵`);
@@ -343,7 +382,7 @@ async function main() {
     }
   } else {
     console.error(`[info] --city ${args.value} 일괄 조회`);
-    neisRows = await neisSearchByCity(args.value);
+    neisRows = await neisSearchByCity(args.value, args.atpt);
     console.error(`[info] ${neisRows.length}개 학교 매치`);
   }
 
@@ -353,7 +392,7 @@ async function main() {
   let skipped = 0;
 
   for (const row of neisRows) {
-    const result = await buildOne(row, used);
+    const result = await buildOne(row, used, args.atpt);
     if (result.skip) {
       console.error(`[skip] ${result.name} — ${result.reason}`);
       skipped++;
