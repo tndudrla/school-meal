@@ -53,6 +53,7 @@
 - [Stage 11-9 — cron 영양교사 타이밍](#stage-11-9--cron-스케줄-영양교사-업로드-타이밍에-맞춤-2026-04-26)
 - [Stage 12 — 익명 개발 건의사항 + 추천](#stage-12--익명-개발-건의사항--추천-2026-04-26) — Supabase 인앱 피드백 보드
 - [Stage 13 — 미러 파이프라인 부분 실패 진단/처방](#stage-13--미러-파이프라인-부분-실패-진단처방-2026-04-26) — 76교 청크 분할 + timeout/concurrency 조정
+- [Stage 13-1 — 일요일 cron 의 다음 주 페이지 fetch 버그](#stage-13-1--일요일-cron-의-다음-주-페이지-fetch-버그-2026-04-26) — ymd 어제 기준으로
 
 ### 군포 학교 추가 (별도 커밋, 2026-04-26)
 경기 군포 13개 초등학교 등록 (군포의왕 통합 교육청). 단순 데이터 추가라
@@ -1527,3 +1528,69 @@ client_fingerprint (도배 방지용 IP+UA 해시), hidden (욕설 사후 숨김
 - 정상 운영 중에는 select-existing 으로 대부분 skip 되니 처음 학교 추가했을
   때 미러 누락이 안 보일 수 있음 (그 한 번 다운로드를 해야 자리잡음)
 - 분산 시스템 디버깅엔 검증 명령(PowerShell `Invoke-RestMethod`) 의 적극 활용
+
+---
+
+## Stage 13-1 — 일요일 cron 의 다음 주 페이지 fetch 버그 (2026-04-26)
+
+### 발단
+
+Stage 13 처방(청크 분할 + timeout/concurrency) 적용 후에도 수동 cron 결과
+bisan 폴더에 여전히 1장만. cron 응답 JSON 본문 받아 보니:
+
+```json
+{
+  "schoolId": "bisan",
+  "photos": { "count": 0, "ymds": [] },
+  "mirror": { "uploaded": 0, "failed": 0, "missing": 0 }
+}
+```
+
+**`photos.count: 0`** — `fetchWeekPhotos` 자체가 빈 결과 반환. failed 도 0
+이라 다운로드 단계까진 가지도 않은 것. 그런데 같은 학교를 PowerShell 로
+`/api/meal/photo?ymd=20260420` 호출하면 사진 잘 잡힘 (origin URL).
+
+### 원인
+
+오늘이 2026-04-26 일요일. `getWeekStart(20260426)` 가 일요일이라 본인을
+주 시작으로 보고 **다음 주 (4/26~5/2)** 페이지를 받아옴. 영양교사가 다음
+주 사진을 미리 안 올리니 빈 페이지 → `photos.count: 0`. cron 이 일요일
+새벽 3회 모두 다음 주 빈 페이지만 받음.
+
+API 호출은 사용자가 4/20 (월) 등 평일 ymd 를 주니 해당 주 (4/19~4/25)
+페이지 받아 정상 작동.
+
+### 처방
+
+cron 의 사진 fetch 기준일을 `today` 가 아니라 `yesterday` 로 변경.
+
+```ts
+const yesterday = new Date(today);
+yesterday.setDate(today.getDate() - 1);
+const yesterdayYmd = formatDate(yesterday);
+// fetchWeekPhotos(school.scrape, yesterdayYmd)
+// mirrorWeekForSchool(school, yesterdayYmd)
+```
+
+요일별 효과:
+- 일요일 cron → 어제(토) → 4/19~4/25 주 미러 ✅
+- 월요일 cron → 어제(일) → 4/19~4/25 주 미러 (지난 주). 새 주 시작이 한 주 늦음
+- 화~토 cron → 어제도 같은 주 → 동일
+
+월요일에 새 주 시작이 한 주 늦어지지만, **하루 3회 cron + 슬라이딩 윈도우 7일** 이라 화요일부터는 자연 누적. 사용자 영향 없음. 학교 호출 부담 안 늘림.
+
+### 의도적으로 안 한 것
+
+- **양주 모두 받기** (이번 주 + 지난 주 두 번 호출) — 학교 부담 2배. 슬라이딩 윈도우로 충분히 커버됨
+- **NEIS_API_KEY 등록** — 별개 이슈. 미러 문제와 무관 확인. 추후 작업
+
+### 변경 파일
+
+- `src/app/api/cron/refresh/route.ts` — yesterday 변수 + fetchWeekPhotos / mirrorWeekForSchool 호출
+- (NEIS 호출은 today/tomorrow 그대로 — 메뉴 워밍 목적이라 today 기준이 맞음)
+
+### 교훈
+
+- API 호출 (사용자) 와 cron 호출 (자동) 이 **날짜를 다르게 해석**. 사용자 입력은 평일이라 정상 작동, cron 은 일요일 본인이 ymd 라 다음 주 인식
+- `fetchWeekPhotos` 가 일요일 기준 주를 받는 비대칭이 cron 측에서 표면화. **인터페이스 설계 시 호출자가 어떤 시점에 호출하는지 고려 필요**
+- cron 응답 JSON 본문 (mirror.failures, photos.ymds) 이 결정적 진단 도구. 관측성 부족이 14건의 실패를 한참 디버깅하게 만듦. 처방 4 (Slack/Supabase 로그) 가 backlog 로 살아있는 게 정당함

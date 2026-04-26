@@ -38,6 +38,16 @@ export async function GET(request: NextRequest) {
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
   const tomorrowYmd = formatDate(tomorrow);
+
+  // 사진 미러용 기준일은 "어제". 이유:
+  // fetchWeekPhotos 가 일요일 시작 주를 받아오는데, 일요일 cron 이 today 로
+  // 호출하면 "다음 주" 페이지를 받아 photos.count: 0 (영양교사 미업로드).
+  // 어제 기준이면 일요일 cron 도 지난 주 페이지를 받아 이번 주 사진 미러.
+  // 평일 cron 은 어제도 같은 주라 결과 동일. (Stage 13-1)
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayYmd = formatDate(yesterday);
+
   const mirrorOn = isMirrorEnabled();
 
   // 학교 한 개를 처리하는 작업. 청크 분할 전후 동일 로직이라 함수로 추출.
@@ -66,9 +76,10 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. 학교 홈페이지 이번주 사진 캐싱 (스크래핑 가능한 학교만)
+    // ymd 는 어제 기준 — 위 yesterdayYmd 주석 참고
     if (school.scrape) {
       try {
-        const photos = await fetchWeekPhotos(school.scrape, ymd);
+        const photos = await fetchWeekPhotos(school.scrape, yesterdayYmd);
         result.photos = {
           count: Object.keys(photos).length,
           ymds: Object.keys(photos),
@@ -78,9 +89,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 3. Supabase 미러 (키 있을 때만)
+    // 3. Supabase 미러 (키 있을 때만). 동일하게 어제 기준.
     if (mirrorOn && school.scrape) {
-      result.mirror = await mirrorWeekForSchool(school, ymd);
+      result.mirror = await mirrorWeekForSchool(school, yesterdayYmd);
     }
 
     return result;
