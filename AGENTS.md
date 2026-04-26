@@ -35,7 +35,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 `fetch(neis, { next: { revalidate: 3600 } })` 가 박혀 있어 같은 (학교, ymd) 는
 1시간 동안 캐시값. 응답에 `Cache-Control: s-maxage=3600` 도 같이 보냄. cron 이
-하루 2회(KST 8시·15시) 워밍하므로 NEIS 실호출은 학교·날짜당 하루 2~3회 수준.
+하루 3회(KST 08:00·14:30·17:00) 워밍하므로 NEIS 실호출은 학교·날짜당 하루 2~4회
+수준. 14:30 은 영양교사 사진 업로드 골든타임(점심 후 1~2시) 직후 미러용.
 
 ### 미러 파이프라인의 운영 제약
 
