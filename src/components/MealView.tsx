@@ -257,25 +257,28 @@ export default function MealView({ initialYmd, schoolId }: Props) {
 
       <InstallPrompt />
 
-      <div className="mx-5 mt-3 flex items-center justify-center gap-4 text-xs text-stone-500">
-        <a
-          href="mailto:sooyoungkim@kakao.com"
-          className="hover:text-orange-500 transition-colors"
-        >
-          ✉️ sooyoungkim@kakao.com
-        </a>
-        <span className="text-stone-300">·</span>
-        <a
-          href="https://instagram.com/tbdudrla"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-orange-500 transition-colors"
-        >
-          📷 @tbdudrla
-        </a>
-      </div>
-
       <FeedbackBoard />
+
+      <footer className="mx-5 mt-8 mb-4 flex flex-col items-center gap-2 text-xs text-stone-500">
+        <div className="flex items-center justify-center gap-4">
+          <a
+            href="mailto:sooyoungkim@kakao.com"
+            className="hover:text-orange-500 transition-colors"
+          >
+            ✉️ sooyoungkim@kakao.com
+          </a>
+          <span className="text-stone-300">·</span>
+          <a
+            href="https://instagram.com/tbdudrla"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-orange-500 transition-colors"
+          >
+            📷 @tbdudrla
+          </a>
+        </div>
+        <p className="text-[11px] text-stone-400">이 웹은 영리를 목적으로 하지 않습니다.</p>
+      </footer>
     </>
   );
 }
