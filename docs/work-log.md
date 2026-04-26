@@ -55,6 +55,7 @@
 - [Stage 13 — 미러 파이프라인 부분 실패 진단/처방](#stage-13--미러-파이프라인-부분-실패-진단처방-2026-04-26) — 76교 청크 분할 + timeout/concurrency 조정
 - [Stage 13-1 — 일요일 cron 의 다음 주 페이지 fetch 버그](#stage-13-1--일요일-cron-의-다음-주-페이지-fetch-버그-2026-04-26) — ymd 어제 기준으로
 - [Stage 13-2 — cron 504 timeout 처방](#stage-13-2--cron-504-timeout-처방-2026-04-26) — 50초 budget + 청크 5 + skip 누적
+- [Stage 13-3 — 학교당 8초 wall time 가드](#stage-13-3--학교당-8초-wall-time-가드-2026-04-26) — 13-2 후 또 504. 청크 안에서 한 학교가 길게 잡는 문제
 
 ### 군포 학교 추가 (별도 커밋, 2026-04-26)
 경기 군포 13개 초등학교 등록 (군포의왕 통합 교육청). 단순 데이터 추가라
@@ -1664,3 +1665,50 @@ for (let i = 0; i < schools.length; i += CHUNK_SIZE) {
 - 함수 한도가 있는 환경에선 **"한 번에 다 끝내는" 보다 "안전하게 일부 끝내고 다음 회차에 누적"** 이 안전. select-existing idempotency 가 핵심
 - duration 늘리는 처방은 한도 hit 으로 양면성 — **항상 자체 timer 가드 동반**
 - 첫 sweep 다운로드는 비용 큼 (학교 76교 × 7장 = 532장 × 5MB = 2.6GB raw). 일단 넣어두면 그 후엔 select-existing 으로 거의 전부 skip — 신규 학교 추가 또는 새 사진 업로드 시점에만 다운로드 발생
+
+---
+
+## Stage 13-3 — 학교당 8초 wall time 가드 (2026-04-26)
+
+### 발단
+
+13-2 의 50초 budget 가드 적용 후에도 504 timeout 재발. budget 가드가
+**청크 사이에만** 체크되니, 한 청크의 한 학교가 학교 서버 응답 안 와서
+30초+ 잡으면 청크 자체가 늦어져 64초 넘김.
+
+### 원인
+
+`Promise.all(chunk.map(processSchool))` 가 청크 안 5교 중 가장 늦은 학교의
+응답을 기다림. `mirrorWeekForSchool` 안에서 다운로드 timeout 15초 × 7장
+직렬화는 안 되지만 sharp/Supabase upload 가 학교당 누적 30초 잡힐 가능성.
+
+### 처방
+
+`processSchool` 자체에 `Promise.race` 로 **학교당 8초 cap**.
+
+```ts
+const PER_SCHOOL_BUDGET_MS = 8_000;
+const sleep = (ms) => new Promise(r => setTimeout(() => r({ timedOut: true }), ms));
+const processSchool = async (school) => {
+  const raced = await Promise.race([
+    processSchoolInner(school),
+    sleep(PER_SCHOOL_BUDGET_MS),
+  ]);
+  if ('timedOut' in raced) return { schoolId: school.id, timedOut: true };
+  return raced;
+};
+```
+
+- 청크 5 동시 → 한 라운드 wall time 최대 8초
+- 50초 budget / 8초 = 6 라운드 = 30교
+- 한 회차에 30교 처리, 다음 회차에 다음 30교, 세 회차에 76교 다 채움
+
+### 의도적으로 안 한 것
+
+- **AbortController 로 timeout 발생 시 진행 중 fetch 중단** — 코드 복잡도 ↑.
+  Promise.race 로 결과만 버리면 다운로드는 background 에서 마저 진행해
+  Supabase 에 들어가도 다음 회차 select-existing 으로 인식. idempotent
+
+### 변경 파일
+
+- `src/app/api/cron/refresh/route.ts` — sleep, processSchoolInner / processSchool 분리

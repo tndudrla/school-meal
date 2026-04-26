@@ -50,8 +50,17 @@ export async function GET(request: NextRequest) {
 
   const mirrorOn = isMirrorEnabled();
 
+  // 학교당 wall time 가드. (Stage 13-2) 청크 budget 가드만으로는 한 학교가
+  // 30초+ 잡아 청크 자체를 늦추는 사고 발생 → 504. 학교당 8초 cap 으로 강제 종료.
+  // 못 끝낸 학교는 다음 cron 회차에서 select-existing 우회 후 재시도.
+  const PER_SCHOOL_BUDGET_MS = 8_000;
+  const sleep = (ms: number) =>
+    new Promise<{ timedOut: true }>((resolve) =>
+      setTimeout(() => resolve({ timedOut: true }), ms)
+    );
+
   // 학교 한 개를 처리하는 작업. 청크 분할 전후 동일 로직이라 함수로 추출.
-  const processSchool = async (school: ReturnType<typeof listSchools>[number]) => {
+  const processSchoolInner = async (school: ReturnType<typeof listSchools>[number]) => {
     const result: Record<string, unknown> = { schoolId: school.id };
 
     // 1. NEIS 메뉴 오늘 + 내일 워밍
@@ -95,6 +104,22 @@ export async function GET(request: NextRequest) {
     }
 
     return result;
+  };
+
+  // wall time 8초 가드로 감싸기. 한 학교가 학교 서버 느려서 30초+ 잡으면
+  // 같은 청크의 다른 학교까지 같이 늦어져 함수 한도 hit. 8초 넘으면 그 학교는
+  // timedOut 마크하고 다음 학교에 시간 양보. select-existing 덕에 다음 회차에서 즉시 skip.
+  const processSchool = async (
+    school: ReturnType<typeof listSchools>[number]
+  ): Promise<Record<string, unknown>> => {
+    const raced = await Promise.race([
+      processSchoolInner(school),
+      sleep(PER_SCHOOL_BUDGET_MS),
+    ]);
+    if ('timedOut' in raced && raced.timedOut === true) {
+      return { schoolId: school.id, timedOut: true };
+    }
+    return raced as Record<string, unknown>;
   };
 
   // 76교를 한 번에 Promise.all 로 돌리면 학교당 wall time 이 함수 한도(60s)에
