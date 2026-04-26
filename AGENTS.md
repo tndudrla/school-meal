@@ -24,6 +24,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 `schoolScraper.ts` 같은 모듈에 학교별 상수를 박지 말 것. NEIS 만 지원하는
 학교(다른 시도 도메인) 는 `scrape` 를 생략하면 메뉴는 보이고 사진은 안 보인다.
 
+**학교 추가 후 반드시 cron 수동 실행** (Vercel Dashboard → Project →
+Settings → Cron Jobs → `/api/cron/refresh` 의 `Run` 버튼). 새 학교의 미러를
+즉시 채워, 사용자가 진입했을 때 학교 홈페이지 직접 호출이 일어나지 않게 함.
+규칙 깜빡하면 cron 다음 회차(최대 8시간) 까지 그 학교만 학교 사이트에 직접
+요청 가는 구간이 생긴다. 트래픽 폭증 시 학교 IP 차단 트리거.
+
 ### 사진은 미러 우선, 학교 직접은 폴백
 
 - 앱(`/api/meal/photo`): 미러 hit → `source:'mirror'`, miss → 학교 직접 → null

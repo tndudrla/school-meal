@@ -22,10 +22,25 @@ Vercel Hobby 한도(함수 호출 100K/월) 쉽게 초과 가능. 학교 홈페�
 
 | 위험 | 위치 | 영향도 |
 | --- | --- | --- |
-| 🔴 미러 miss 시 학교 홈페이지 직접 fetch | `src/app/api/meal/photo/route.ts:43~57` | 학교 IP 차단 → cron 까지 망가지는 cascade failure |
+| 🟢 미러 miss 시 학교 홈페이지 직접 fetch | `src/app/api/meal/photo/route.ts:43~57` | **🔴 → 🟢 정정** (아래 메모) |
 | 🟡 Vercel Hobby 한도 + Analytics 비활성 | Vercel Dashboard | 한도 임박해도 모름 |
 | 🟡 `/api/meal` 응답 Cache-Control 없음 | `src/app/api/meal/route.ts` | 같은 (학교·날짜) 도 매번 함수 호출 |
 | 🟢 피드백 도배 (VPN IP 우회) | `src/lib/feedback.ts` | 30초 cooldown 만으론 부족 — 우선순위 낮음 |
+
+#### 학교 직접 호출 위험 정정 (2026-04-26)
+
+처음엔 🔴 로 평가했으나 실제 사용자 동선과 미러 정책 상 위험 거의 0:
+
+- 학부모 99% 진입은 **이번 주·지난 주** (sliding window 7일 안) → 미러 hit
+- 8일 이상 과거 메뉴 굳이 찾는 사용자 자체가 거의 없음
+- 사용자가 76개 학교에 분산 → 한 학교 동시 폭주 자체가 드묾
+
+남은 유일한 빈 창은 **새 학교 등록 직후~다음 cron 까지 (최대 8시간)** —
+이건 **규칙으로 해결**: 학교 추가 후 Vercel Dashboard 에서 cron 수동 실행
+(`AGENTS.md` 의 "학교 추가는 한 곳만" 섹션에 명문화).
+
+→ "학교 폴백 제거" 사전 처방 우선순위가 매우 낮아짐. 다른 사전 처방 (캐시
+헤더, Analytics) 가 더 임팩트.
 
 ### 폭증 발생 시 즉시 대응 카드
 
