@@ -7,6 +7,7 @@ import SchoolSwitcher from '@/components/SchoolSwitcher';
 import WeekExportButton from '@/components/WeekExportButton';
 import InstallPrompt from '@/components/InstallPrompt';
 import SharedLinkBanner from '@/components/SharedLinkBanner';
+import FeedbackBoard from '@/components/FeedbackBoard';
 import {
   getWeekDatesByOffset,
   formatDate,
@@ -273,6 +274,8 @@ export default function MealView({ initialYmd, schoolId }: Props) {
           📷 @tbdudrla
         </a>
       </div>
+
+      <FeedbackBoard />
     </>
   );
 }

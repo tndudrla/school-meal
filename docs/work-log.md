@@ -51,6 +51,7 @@
 - [Stage 11 — 홈 화면 추가 유도](#stage-11--홈-화면-추가-유도-2026-04-26) — PWA install prompt
 - [Stage 11-1~11-8 — 가벼운 미세 개선](#stage-11-1--11-8--가벼운-미세-개선-묶음-2026-04-26) — 폰트 임베드, lightbox, 토스트, 별칭 검색 등
 - [Stage 11-9 — cron 영양교사 타이밍](#stage-11-9--cron-스케줄-영양교사-업로드-타이밍에-맞춤-2026-04-26)
+- [Stage 12 — 익명 개발 건의사항 + 추천](#stage-12--익명-개발-건의사항--추천-2026-04-26) — Supabase 인앱 피드백 보드
 
 ### 군포 학교 추가 (별도 커밋, 2026-04-26)
 경기 군포 13개 초등학교 등록 (군포의왕 통합 교육청). 단순 데이터 추가라
@@ -1359,3 +1360,87 @@ KST = UTC + 9. 즉 KST 14:30 = UTC 05:30 (당일). KST 08:00 = UTC 23:00 (전일
 
 - `vercel.json` — crons 배열 3개로
 - `AGENTS.md` — "하루 2회" → "하루 3회" 설명 갱신
+
+---
+
+## Stage 12 — 익명 개발 건의사항 + 추천 (2026-04-26)
+
+### 방향 전환
+
+이전(Stage 9-1 직후) "이메일/인스타로 대체" 결정은 **운영 부담 회피용**.
+지금은 개발 단계라 본격 개선 방향 시그널이 필요 → **인앱 피드백** 도입.
+
+비영리 톤 유지 — 화려한 게시판 X, 작은 의견 보드. 글마다 추천만, 댓글·식별
+없음.
+
+### 데이터 모델 (Supabase 신규 테이블)
+
+`feedback` 테이블 — id (uuid), body (5~500자), created_at, vote_count,
+client_fingerprint (도배 방지용 IP+UA 해시), hidden (욕설 사후 숨김).
+
+마이그레이션은 `docs/migrations/stage12_feedback.sql` 한 번 콘솔에서 실행.
+`meal_photos` 와 동일 운영 패턴.
+
+**RLS**: anon 은 select 만 (hidden=false). insert/update 는 service role 만 →
+클라이언트가 직접 vote_count 1000 박는 사고 차단.
+
+`vote_count` 동시성 안전을 위해 SQL 함수(`increment_feedback_vote`) RPC.
+
+피처 플래그: `SUPABASE_SERVICE_ROLE_KEY` 없으면 보드 자체가 안 보임 (기존
+미러 패턴과 동일).
+
+### 추천 중복 — localStorage 호의 의존
+
+**선택 근거**: 학교/집 같은 공유 IP 환경에서 IP 단위 차단은 정상 사용자도
+막아버림. localStorage 한 번만 추천 + 다른 기기에서는 다시 추천 가능 → 서버
+부담 0, 사용자 호의에 의존.
+
+어이없게 높은 추천 수 발견 시 사후 hidden=true 처리 (Supabase 콘솔).
+
+### 도배·스팸 방지 — 간단 제한만
+
+1. 글자 수 5~500자 (DB check + 서버 + 클라 셋 다 검증)
+2. 30초 cooldown — 같은 fingerprint(IP+UA 해시) 30초 내 재제출 거절
+3. 욕설 소프트 필터 — 작은 단어 리스트, 운영하며 추가
+4. hCaptcha/관리자 승인 X — 개발 단계 트래픽 작고 사후 hidden 으로 충분
+
+### 운영 도구 — 공개 리스트만
+
+별도 어드민 대시보드 안 만듦. 본인이 사이트 들어가 같은 리스트 보면 됨.
+사후 숨김은 Supabase 콘솔에서 직접 SQL — 드물게 일어날 일이라 UI 안 둠.
+
+향후 운영 부담 커지면 Stage 12-2 로 admin 페이지 추가.
+
+### UI
+
+연락처 줄(이메일·인스타) **아래** — 풋터의 마지막 영역.
+- 입력 textarea + 글자 카운터 (`N / 500`)
+- 의견 보내기 버튼 (cooldown 시 `N초 후 가능`)
+- 목록은 추천 많은 순, 동률 시 최근 순. 50건 한도
+- 추천 버튼 누르면 낙관적 업데이트 + 서버 응답으로 보정. 실패 시 롤백
+- 이미 추천한 글은 오렌지 배경 + 비활성
+
+### 변경 파일
+
+- 신규: `docs/migrations/stage12_feedback.sql` — Supabase 마이그레이션 (수동 실행)
+- 신규: `src/lib/feedback.ts` — DB 접근 + 검증
+- 신규: `src/app/api/feedback/route.ts` — GET 목록 / POST 등록
+- 신규: `src/app/api/feedback/[id]/vote/route.ts` — POST 추천
+- 신규: `src/components/FeedbackBoard.tsx` — UI
+- 수정: `src/components/MealView.tsx` — 풋터 아래 끼움
+
+### 의도적으로 안 한 것
+
+- **댓글·답글** — 토론하면 운영 부담 폭주. 추천만 단방향
+- **작성자 식별** — 익명 본질 유지
+- **삭제·신고 버튼** — 익명이라 본인 글 삭제 식별 불가, 신고는 사후 hidden 으로
+- **hCaptcha/Turnstile** — 개발 단계 과함
+- **/admin 페이지** — Supabase 콘솔이 곧 어드민
+- **상태 머신(검토중/완료)** — 운영 자랑 톤, 비영리에 안 맞음
+- **카테고리/태그·페이지네이션** — 글 수 적을 거라 불필요
+
+### 운영자 메모 (사후 처리)
+
+- 사후 숨김: `update feedback set hidden = true where id = '...';`
+- 통째 삭제: `delete from feedback where id = '...';`
+- 어이없는 추천 수: hidden 처리 권장 (히스토리 보존)

@@ -1,0 +1,261 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+interface FeedbackItem {
+  id: string;
+  body: string;
+  created_at: string;
+  vote_count: number;
+}
+
+const VOTED_KEY = 'votedFeedbackIds';
+const COOLDOWN_KEY = 'lastFeedbackPostAt';
+const COOLDOWN_MS = 30_000;
+
+const MIN_LEN = 5;
+const MAX_LEN = 500;
+
+function readVotedSet(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(VOTED_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeVotedSet(set: Set<string>) {
+  try {
+    window.localStorage.setItem(VOTED_KEY, JSON.stringify(Array.from(set)));
+  } catch {
+    // localStorage 실패 무시 — UX 저하만, 동작 막지는 않음
+  }
+}
+
+/**
+ * 익명 개발 건의사항 보드 (Stage 12).
+ * - 풋터 아래 위치
+ * - 추천 많은 순 정렬
+ * - 추천 중복은 localStorage 로 관리
+ */
+export default function FeedbackBoard() {
+  const [items, setItems] = useState<FeedbackItem[] | null>(null);
+  const [enabled, setEnabled] = useState(true);
+  const [body, setBody] = useState('');
+  const [posting, setPosting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [voted, setVoted] = useState<Set<string>>(new Set());
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+
+  // mount: 목록 + localStorage 초기 로드
+  useEffect(() => {
+    setVoted(readVotedSet());
+    refresh();
+    // 진행 중인 cooldown 복원
+    const last = parseInt(
+      window.localStorage.getItem(COOLDOWN_KEY) ?? '0',
+      10
+    );
+    const remain = last + COOLDOWN_MS - Date.now();
+    if (remain > 0) setCooldownLeft(Math.ceil(remain / 1000));
+  }, []);
+
+  // cooldown 카운트다운
+  useEffect(() => {
+    if (cooldownLeft <= 0) return;
+    const t = setTimeout(() => setCooldownLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldownLeft]);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch('/api/feedback', { cache: 'no-store' });
+      const data = await res.json();
+      setItems(data.items ?? []);
+      setEnabled(data.enabled !== false);
+    } catch {
+      setItems([]);
+    }
+  }, []);
+
+  const trimmed = body.trim();
+  const tooShort = trimmed.length < MIN_LEN;
+  const tooLong = trimmed.length > MAX_LEN;
+  const canSubmit = !posting && !tooShort && !tooLong && cooldownLeft <= 0;
+
+  async function submit() {
+    if (!canSubmit) return;
+    setPosting(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? '저장에 실패했어요');
+        return;
+      }
+      // 성공 — 폼 비우기, cooldown 시작, 목록 새로고침
+      setBody('');
+      const now = Date.now();
+      window.localStorage.setItem(COOLDOWN_KEY, String(now));
+      setCooldownLeft(Math.ceil(COOLDOWN_MS / 1000));
+      await refresh();
+    } catch {
+      setError('저장에 실패했어요. 잠시 후 다시 시도해주세요');
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  async function vote(id: string) {
+    if (voted.has(id)) return;
+    // 낙관적 업데이트
+    const next = new Set(voted);
+    next.add(id);
+    setVoted(next);
+    writeVotedSet(next);
+    setItems((prev) =>
+      prev
+        ? prev.map((it) =>
+            it.id === id ? { ...it, vote_count: it.vote_count + 1 } : it
+          )
+        : prev
+    );
+    try {
+      const res = await fetch(`/api/feedback/${id}/vote`, { method: 'POST' });
+      if (!res.ok) throw new Error('vote failed');
+      const data = await res.json();
+      // 서버가 알려준 정확한 수로 보정
+      setItems((prev) =>
+        prev
+          ? prev.map((it) =>
+              it.id === id ? { ...it, vote_count: data.vote_count } : it
+            )
+          : prev
+      );
+    } catch {
+      // 롤백
+      const rollback = new Set(next);
+      rollback.delete(id);
+      setVoted(rollback);
+      writeVotedSet(rollback);
+      setItems((prev) =>
+        prev
+          ? prev.map((it) =>
+              it.id === id ? { ...it, vote_count: Math.max(0, it.vote_count - 1) } : it
+            )
+          : prev
+      );
+    }
+  }
+
+  const counter = useMemo(() => {
+    const len = trimmed.length;
+    return `${len} / ${MAX_LEN}`;
+  }, [trimmed]);
+
+  // 피처 비활성: 섹션 자체 안 그림
+  if (items !== null && !enabled) return null;
+
+  return (
+    <section className="mx-5 mt-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+      <div className="mb-2">
+        <strong className="text-orange-500 font-['Gaegu'] text-base">
+          💬 개발 건의
+        </strong>
+        <p className="text-xs text-stone-500 mt-0.5">
+          베타 단계라 의견 주시면 큰 도움이 돼요. 익명이에요.
+        </p>
+      </div>
+
+      {/* 입력 폼 */}
+      <div className="mb-3">
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          maxLength={MAX_LEN + 50 /* 약간 여유 — 서버에서도 검증 */}
+          placeholder="이런 기능이 있으면 좋겠어요…"
+          rows={3}
+          className="w-full p-2.5 text-sm bg-white border border-amber-200 rounded-xl resize-y focus:outline-none focus:border-orange-400 placeholder:text-stone-400"
+        />
+        <div className="flex items-center justify-between mt-1.5">
+          <span
+            className={`text-xs ${
+              tooLong ? 'text-red-500' : 'text-stone-400'
+            }`}
+          >
+            {counter}
+          </span>
+          <button
+            onClick={submit}
+            disabled={!canSubmit}
+            className="text-xs px-3 py-1.5 rounded-full bg-orange-500 text-white font-bold hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {posting
+              ? '보내는 중...'
+              : cooldownLeft > 0
+              ? `${cooldownLeft}초 후 가능`
+              : '의견 보내기'}
+          </button>
+        </div>
+        {error && (
+          <p className="text-xs text-red-500 mt-1.5">{error}</p>
+        )}
+      </div>
+
+      {/* 목록 */}
+      {items === null ? (
+        <div className="flex flex-col gap-2 mt-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-12 bg-amber-100/50 rounded-xl animate-pulse"
+            />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-xs text-stone-500 text-center py-4">
+          첫 의견을 남겨주세요!
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1">
+          {items.map((it) => {
+            const hasVoted = voted.has(it.id);
+            return (
+              <li
+                key={it.id}
+                className="flex items-start gap-2.5 p-2.5 bg-white rounded-xl border border-amber-100"
+              >
+                <button
+                  onClick={() => vote(it.id)}
+                  disabled={hasVoted}
+                  aria-label="추천"
+                  className={`shrink-0 flex flex-col items-center justify-center w-10 py-1 rounded-lg transition-colors ${
+                    hasVoted
+                      ? 'bg-orange-100 text-orange-500 cursor-default'
+                      : 'bg-amber-50 hover:bg-amber-100 text-stone-600'
+                  }`}
+                >
+                  <span className="text-sm leading-none">⬆</span>
+                  <span className="text-xs font-bold leading-tight mt-0.5">
+                    {it.vote_count}
+                  </span>
+                </button>
+                <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap break-words flex-1">
+                  {it.body}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
