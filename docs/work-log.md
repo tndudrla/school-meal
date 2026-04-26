@@ -54,6 +54,7 @@
 - [Stage 12 — 익명 개발 건의사항 + 추천](#stage-12--익명-개발-건의사항--추천-2026-04-26) — Supabase 인앱 피드백 보드
 - [Stage 13 — 미러 파이프라인 부분 실패 진단/처방](#stage-13--미러-파이프라인-부분-실패-진단처방-2026-04-26) — 76교 청크 분할 + timeout/concurrency 조정
 - [Stage 13-1 — 일요일 cron 의 다음 주 페이지 fetch 버그](#stage-13-1--일요일-cron-의-다음-주-페이지-fetch-버그-2026-04-26) — ymd 어제 기준으로
+- [Stage 13-2 — cron 504 timeout 처방](#stage-13-2--cron-504-timeout-처방-2026-04-26) — 50초 budget + 청크 5 + skip 누적
 
 ### 군포 학교 추가 (별도 커밋, 2026-04-26)
 경기 군포 13개 초등학교 등록 (군포의왕 통합 교육청). 단순 데이터 추가라
@@ -1594,3 +1595,72 @@ const yesterdayYmd = formatDate(yesterday);
 - API 호출 (사용자) 와 cron 호출 (자동) 이 **날짜를 다르게 해석**. 사용자 입력은 평일이라 정상 작동, cron 은 일요일 본인이 ymd 라 다음 주 인식
 - `fetchWeekPhotos` 가 일요일 기준 주를 받는 비대칭이 cron 측에서 표면화. **인터페이스 설계 시 호출자가 어떤 시점에 호출하는지 고려 필요**
 - cron 응답 JSON 본문 (mirror.failures, photos.ymds) 이 결정적 진단 도구. 관측성 부족이 14건의 실패를 한참 디버깅하게 만듦. 처방 4 (Slack/Supabase 로그) 가 backlog 로 살아있는 게 정당함
+
+---
+
+## Stage 13-2 — cron 504 timeout 처방 (2026-04-26)
+
+### 발단
+
+Stage 13-1 적용 후 수동 cron Run 결과 **504 Vercel Runtime Timeout (60초)**.
+어제 기준 ymd 가 토요일이라 학교 페이지가 정상 데이터로 채워져 있어
+진짜로 76교 × 7장 다운로드를 시작 → 60초 한도 hit.
+
+### 진단
+
+방향은 맞음 (다운로드가 시작됐다는 자체가 13-1 처방 효과). 강도 조정 필요.
+60초 한도 안에서 76교를 다 미러하는 건 산술적으로 빠듯:
+- 76교 / 청크 10 = 8라운드. 한 라운드 평균 7~8초면 한도 hit
+- 청크 5 로 줄이면 라운드 수 ↑ → 더 빠듯
+
+### 처방 — 자체 시간 가드 + 자연 누적
+
+함수 시작 시점부터 50초(안전 여유 10초) 가 지나면 **남은 청크 스킵**하고
+응답 반환. 다음 cron 회차(또는 수동 Run)가 이어받음.
+
+`mirrorWeekForSchool` 의 `select-existing` 로직 덕에 이미 미러된 학교는
+즉시 skip — 다음 회차는 미러 안 된 학교부터 자연스럽게 처리됨.
+
+```ts
+const FUNCTION_BUDGET_MS = 50_000;
+const startedAt = Date.now();
+for (let i = 0; i < schools.length; i += CHUNK_SIZE) {
+  if (Date.now() - startedAt > FUNCTION_BUDGET_MS) {
+    skipped = schools.length - i;
+    break;
+  }
+  const chunk = schools.slice(i, i + CHUNK_SIZE);
+  const results = await Promise.all(chunk.map(processSchool));
+  perSchool.push(...results);
+}
+```
+
+청크 크기 10 → **5** 로 줄여 학교당 wall time 더 길게 확보 (한 학교의
+7장 다운로드가 끝까지 갈 시간). 라운드는 늘지만 budget 가드가 한도 안에서
+끊어주므로 504 안 남.
+
+응답 JSON 에 `elapsedMs`, `skippedSchools` 추가 — 다음 디버깅 신속화.
+
+### 자연 누적의 실제 거동
+
+- 1회차: 30~40교 미러
+- 2회차 (8시간 후 cron 또는 즉시 수동): select-existing 으로 1회차 미러 학교
+  스킵 → 31~76교 미러 시도. 1라운드당 빠른 skip 후 새 다운로드만
+- 3회차: 모든 학교 미러된 후엔 select-existing 으로 다 스킵, 새 사진만 추가
+
+### 의도적으로 안 한 것
+
+- **CHUNK_SIZE 환경변수화** — 학교 76교 기준 5가 적정. 환경마다 튜닝 필요해질 때 도입
+- **budget 환경변수화** — Vercel Hobby 60s 한도가 고정이라 50s 가 적정. 변할 일 없음
+- **skip 된 학교 다음 회차 우선 처리** — 학교 순서를 바꾸면 select-existing 의 일관성이 흐트러짐. 자연 누적으로 충분
+- **더 강한 처방 (학교별 분리 cron, 큐)** — Hobby 플랜에서 과한 수준. 6000교 가면 검토
+
+### 변경 파일
+
+- `src/app/api/cron/refresh/route.ts` — budget 가드, CHUNK_SIZE 5, 응답 JSON 에 `elapsedMs`, `skippedSchools`
+
+### 교훈
+
+- 함수 한도가 있는 환경에선 **"한 번에 다 끝내는" 보다 "안전하게 일부 끝내고 다음 회차에 누적"** 이 안전. select-existing idempotency 가 핵심
+- duration 늘리는 처방은 한도 hit 으로 양면성 — **항상 자체 timer 가드 동반**
+- 첫 sweep 다운로드는 비용 큼 (학교 76교 × 7장 = 532장 × 5MB = 2.6GB raw). 일단 넣어두면 그 후엔 select-existing 으로 거의 전부 skip — 신규 학교 추가 또는 새 사진 업로드 시점에만 다운로드 발생

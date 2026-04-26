@@ -100,23 +100,42 @@ export async function GET(request: NextRequest) {
   // 76교를 한 번에 Promise.all 로 돌리면 학교당 wall time 이 함수 한도(60s)에
   // 균등 분할돼 학교 서버 응답이 조금만 느려도 다운로드가 잘려나간다.
   // (Stage 13 진단: bisan 등 다수 학교 미러가 7장 중 1~3장만 들어옴.)
-  // 청크로 쪼개면 한 번에 N교만 동시 처리 → 학교당 30~40초 wall time 확보.
+  // 청크로 쪼개면 한 번에 N교만 동시 처리 → 학교당 wall time 확보.
+  //
+  // 한 회차에 못 끝내는 청크는 50초 근처에서 스킵하고 응답 반환.
+  // 다음 cron 회차(또는 수동 Run) 가 이어받음. select-existing 로직 덕에
+  // 이미 미러된 학교/날짜는 다음 회차에서 즉시 skip 되어 남은 학교에 시간 양보.
+  // (Stage 13-2: 첫 회차 504 timeout 사고 처방.)
+  const FUNCTION_BUDGET_MS = 50_000; // 60초 한도 - 안전 여유 10초
+  const startedAt = Date.now();
   const schools = listSchools();
-  const CHUNK_SIZE = 10;
+  const CHUNK_SIZE = 5;
   const perSchool: Awaited<ReturnType<typeof processSchool>>[] = [];
+  let skipped = 0;
   for (let i = 0; i < schools.length; i += CHUNK_SIZE) {
+    if (Date.now() - startedAt > FUNCTION_BUDGET_MS) {
+      skipped = schools.length - i;
+      break;
+    }
     const chunk = schools.slice(i, i + CHUNK_SIZE);
     const results = await Promise.all(chunk.map(processSchool));
     perSchool.push(...results);
   }
 
   // 4. 슬라이딩 윈도우 cleanup (전 학교 공통, 키 있을 때만)
-  const prune = mirrorOn ? await pruneOldPhotos(ymd) : { enabled: false, pruned: 0 };
+  // 시간 빠듯하면 prune 도 스킵 — 다음 회차에서 처리.
+  const remainingMs = FUNCTION_BUDGET_MS - (Date.now() - startedAt);
+  const prune =
+    mirrorOn && remainingMs > 5_000
+      ? await pruneOldPhotos(ymd)
+      : { enabled: mirrorOn, pruned: 0, skipped: true };
 
   return NextResponse.json({
     triggeredAt: new Date().toISOString(),
     ymd,
     mirrorEnabled: mirrorOn,
+    elapsedMs: Date.now() - startedAt,
+    skippedSchools: skipped,
     schools: perSchool,
     prune,
   });
