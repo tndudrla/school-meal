@@ -52,6 +52,7 @@
 - [Stage 11-1~11-8 — 가벼운 미세 개선](#stage-11-1--11-8--가벼운-미세-개선-묶음-2026-04-26) — 폰트 임베드, lightbox, 토스트, 별칭 검색 등
 - [Stage 11-9 — cron 영양교사 타이밍](#stage-11-9--cron-스케줄-영양교사-업로드-타이밍에-맞춤-2026-04-26)
 - [Stage 12 — 익명 개발 건의사항 + 추천](#stage-12--익명-개발-건의사항--추천-2026-04-26) — Supabase 인앱 피드백 보드
+- [Stage 13 — 미러 파이프라인 부분 실패 진단/처방](#stage-13--미러-파이프라인-부분-실패-진단처방-2026-04-26) — 76교 청크 분할 + timeout/concurrency 조정
 
 ### 군포 학교 추가 (별도 커밋, 2026-04-26)
 경기 군포 13개 초등학교 등록 (군포의왕 통합 교육청). 단순 데이터 추가라
@@ -1444,3 +1445,85 @@ client_fingerprint (도배 방지용 IP+UA 해시), hidden (욕설 사후 숨김
 - 사후 숨김: `update feedback set hidden = true where id = '...';`
 - 통째 삭제: `delete from feedback where id = '...';`
 - 어이없는 추천 수: hidden 처리 권장 (히스토리 보존)
+
+---
+
+## Stage 13 — 미러 파이프라인 부분 실패 진단/처방 (2026-04-26)
+
+### 발단
+
+사용자가 Supabase Storage `meal-photos` 버킷을 직접 열어보니 학교 폴더마다
+사진이 1~3장만 있음. 슬라이딩 윈도우가 7일이라 정상이면 5~7장이 있어야 함.
+
+### 진단 (가설 → 검증)
+
+가설 4개 세우고 한 개씩 배제:
+
+| 가설 | 결과 | 근거 |
+|---|---|---|
+| A. 60s 함수 한도 초과 | ❌ 배제 | cron duration 13.2s 로 한참 여유 |
+| B. 학교에 사진 자체가 없음 | ❌ 배제 | 76교 공통 패턴 — 영양교사 빈도 차로는 설명 안 됨 |
+| C. cron 미동작 | ❌ 배제 | UA `vercel-cron/1.0` 200, 정상 응답 |
+| D. 미러 단계 부분 실패 | 🔴 **확정** | bisan 학교 5일치 API 검증 결과 4일 모두 `source:origin` |
+
+검증 명령 (사용자 PowerShell):
+```powershell
+"20260420".."20260424" | % {
+  Invoke-RestMethod ".../api/meal/photo?schoolId=bisan&ymd=$_"
+}
+```
+→ 4일 모두 학교 서버에는 사진 있는데 미러에 없음 (`source:origin` = 폴백 발동).
+
+### 원인 분석
+
+`Promise.all(listSchools().map(...))` 가 76교를 한꺼번에 동시 처리.
+각 학교 안에서는 `mirrorWeekForSchool` 이 학교당 동시 다운로드 캡 3 으로
+주간 7장을 받아옴. 함수 전체 wall time 13.2s 라는 건 학교당 평균 ~13s 만
+허용된다는 뜻. iad1 → 한국 학교 서버 latency + 5MB 이미지면 한 장 2~5s,
+7장 중 1~3장만 시간 안에 들어오는 그림이 명확.
+
+### 처방 (3개 묶음)
+
+#### 1. cron route — 76교를 청크 10개씩 순차 처리
+
+`src/app/api/cron/refresh/route.ts`
+- `Promise.all(76)` → `for chunk of slices(10)` + `Promise.all(chunk)`
+- 학교당 wall time 13s → 35~45s 확보. 60s 한도에는 여유.
+- duration 늘어나는 만큼 함수 호출 시간 증가하지만 Hobby 한도(월 100GB-시간)에는 영향 미미
+
+#### 2. photoMirror.ts — timeout 45s → 15s, CONCURRENCY 3 → 5
+
+- 한 장이 학교 서버 이상으로 오래 잡혀 다른 6장을 막던 구조 완화
+- 학교 자체를 청크로 쪼갰으니(76 → 10) 학교당 동시성을 늘려도 학교 서버 부담 총합은 비슷
+- 15초 timeout 가드 + 5 동시성 → 7장이 1~2 라운드에 끝남
+
+#### 3. schoolScraper.ts — 빈 결과 캐시 안 함
+
+- `parseWeekPhotos` 가 빈 객체 반환 시 `WEEK_CACHE` 에 안 넣음
+- 학교 페이지 일시 장애·파싱 실패 결과가 1시간 묶이는 사고 방지
+
+### 변경 파일
+
+- `src/app/api/cron/refresh/route.ts` — 청크 분할
+- `src/lib/photoMirror.ts` — timeout / concurrency
+- `src/lib/schoolScraper.ts` — 빈 결과 캐시 가드
+
+### 검증 (배포 후 사용자 작업)
+
+1. Vercel Dashboard → Cron Jobs → `/api/cron/refresh` Run
+2. 응답 duration 35~45s 안에 들어오는지 확인
+3. 1시간 후 Supabase 폴더 다시 확인 → 학교당 5~7장 차는지
+
+### 의도적으로 안 한 것
+
+- **Slack/Supabase 로 cron 결과 기록** — 관측성 좋지만 우선순위 후순위. backlog 로 옮김
+- **학교별 분리 cron / 큐** (BullMQ + Upstash) — Hobby 플랜에서 과한 수준. 1만교 가면 검토
+- **NEIS_API_KEY 등록** — 키 없어도 동작 중. 별개 이슈
+
+### 교훈
+
+- 함수 duration 이 짧다고 다 잘 끝난 게 아니다 — Promise.all 의 wall time 가속
+  효과로 개별 작업이 잘려나갈 수 있음
+- 정상 운영 중에는 select-existing 으로 대부분 skip 되니 처음 학교 추가했을
+  때 미러 누락이 안 보일 수 있음 (그 한 번 다운로드를 해야 자리잡음)
+- 분산 시스템 디버깅엔 검증 명령(PowerShell `Invoke-RestMethod`) 의 적극 활용

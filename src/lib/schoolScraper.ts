@@ -86,7 +86,11 @@ export async function fetchWeekPhotos(
   const html = await res.text();
   const data = parseWeekPhotos(html);
 
-  WEEK_CACHE.set(key, { at: Date.now(), data });
+  // 빈 결과는 캐시 안 함 — 학교 페이지 일시 장애나 파싱 실패 시
+  // 1시간 동안 빈 결과가 묶이는 것 방지. 정상 결과는 그대로 캐시.
+  if (Object.keys(data).length > 0) {
+    WEEK_CACHE.set(key, { at: Date.now(), data });
+  }
   return data;
 }
 

@@ -141,12 +141,13 @@ export async function mirrorWeekForSchool(
         // 파일이 사라졌으면 다운로드~업로드 경로로 떨어뜨려 자동 복구
       }
 
-      // 2. 다운로드 (45초 타임아웃)
-      // 청계초 사진 한 장이 5MB+ 이고 학교 서버가 한국 외 리전에서 느림.
-      // Vercel Hobby 함수 최대 60초라 45초까지 허용.
+      // 2. 다운로드 (15초 타임아웃)
+      // Stage 13: 45초였으나 한 장이 너무 오래 잡으면 같은 학교의 다른 6장을
+      // 막아 미러가 7장 중 1~3장만 들어오는 사고. 5MB 이미지가 15초 넘게
+      // 걸리면 학교 서버 이상이라 보고 포기 — 다음 라운드/cron 에서 재시도.
       stage = 'download';
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 45000);
+      const timer = setTimeout(() => ctrl.abort(), 15000);
       let buf: ArrayBuffer;
       try {
         const res = await fetch(sourceUrl, { signal: ctrl.signal });
@@ -215,8 +216,10 @@ export async function mirrorWeekForSchool(
 
   // 학교당 동시 다운로드 캡 — 학교 서버 폭격 방지 + 부트스트랩 시 60s 한도 안에 들어오게.
   // 정상 운영 중엔 select-existing 으로 대부분 skip 되므로 영향 없음.
-  // 1만 학교 확장 시에도 학교 서버 입장에선 동시 3 요청이 무리 없는 상한.
-  const CONCURRENCY = 3;
+  // Stage 13: 3 → 5. cron route 에서 학교 자체를 청크로 쪼개 동시 학교 수가
+  // 76 → 10 으로 줄었으므로, 학교당 동시성을 늘려도 학교 서버 부담 총합은 비슷.
+  // 한 학교 7장이 1~2 라운드에 끝나 timeout 15s 가드와 시너지.
+  const CONCURRENCY = 5;
   const entries = Object.entries(weekMap);
   const outcomes: Outcome[] = [];
   for (let i = 0; i < entries.length; i += CONCURRENCY) {

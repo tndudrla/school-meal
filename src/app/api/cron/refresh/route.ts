@@ -40,52 +40,64 @@ export async function GET(request: NextRequest) {
   const tomorrowYmd = formatDate(tomorrow);
   const mirrorOn = isMirrorEnabled();
 
-  const perSchool = await Promise.all(
-    listSchools().map(async (school) => {
-      const result: Record<string, unknown> = { schoolId: school.id };
+  // 학교 한 개를 처리하는 작업. 청크 분할 전후 동일 로직이라 함수로 추출.
+  const processSchool = async (school: ReturnType<typeof listSchools>[number]) => {
+    const result: Record<string, unknown> = { schoolId: school.id };
 
-      // 1. NEIS 메뉴 오늘 + 내일 워밍
+    // 1. NEIS 메뉴 오늘 + 내일 워밍
+    try {
+      const [todayMeal, tomorrowMeal] = await Promise.all([
+        fetchMealFromNeis({
+          atptCode: school.neis.atptCode,
+          schoolCode: school.neis.schoolCode,
+          ymd,
+          apiKey: process.env.NEIS_API_KEY,
+        }),
+        fetchMealFromNeis({
+          atptCode: school.neis.atptCode,
+          schoolCode: school.neis.schoolCode,
+          ymd: tomorrowYmd,
+          apiKey: process.env.NEIS_API_KEY,
+        }),
+      ]);
+      result.neis = { today: !!todayMeal, tomorrow: !!tomorrowMeal };
+    } catch (err) {
+      result.neisError = err instanceof Error ? err.message : String(err);
+    }
+
+    // 2. 학교 홈페이지 이번주 사진 캐싱 (스크래핑 가능한 학교만)
+    if (school.scrape) {
       try {
-        const [todayMeal, tomorrowMeal] = await Promise.all([
-          fetchMealFromNeis({
-            atptCode: school.neis.atptCode,
-            schoolCode: school.neis.schoolCode,
-            ymd,
-            apiKey: process.env.NEIS_API_KEY,
-          }),
-          fetchMealFromNeis({
-            atptCode: school.neis.atptCode,
-            schoolCode: school.neis.schoolCode,
-            ymd: tomorrowYmd,
-            apiKey: process.env.NEIS_API_KEY,
-          }),
-        ]);
-        result.neis = { today: !!todayMeal, tomorrow: !!tomorrowMeal };
+        const photos = await fetchWeekPhotos(school.scrape, ymd);
+        result.photos = {
+          count: Object.keys(photos).length,
+          ymds: Object.keys(photos),
+        };
       } catch (err) {
-        result.neisError = err instanceof Error ? err.message : String(err);
+        result.photosError = err instanceof Error ? err.message : String(err);
       }
+    }
 
-      // 2. 학교 홈페이지 이번주 사진 캐싱 (스크래핑 가능한 학교만)
-      if (school.scrape) {
-        try {
-          const photos = await fetchWeekPhotos(school.scrape, ymd);
-          result.photos = {
-            count: Object.keys(photos).length,
-            ymds: Object.keys(photos),
-          };
-        } catch (err) {
-          result.photosError = err instanceof Error ? err.message : String(err);
-        }
-      }
+    // 3. Supabase 미러 (키 있을 때만)
+    if (mirrorOn && school.scrape) {
+      result.mirror = await mirrorWeekForSchool(school, ymd);
+    }
 
-      // 3. Supabase 미러 (키 있을 때만)
-      if (mirrorOn && school.scrape) {
-        result.mirror = await mirrorWeekForSchool(school, ymd);
-      }
+    return result;
+  };
 
-      return result;
-    })
-  );
+  // 76교를 한 번에 Promise.all 로 돌리면 학교당 wall time 이 함수 한도(60s)에
+  // 균등 분할돼 학교 서버 응답이 조금만 느려도 다운로드가 잘려나간다.
+  // (Stage 13 진단: bisan 등 다수 학교 미러가 7장 중 1~3장만 들어옴.)
+  // 청크로 쪼개면 한 번에 N교만 동시 처리 → 학교당 30~40초 wall time 확보.
+  const schools = listSchools();
+  const CHUNK_SIZE = 10;
+  const perSchool: Awaited<ReturnType<typeof processSchool>>[] = [];
+  for (let i = 0; i < schools.length; i += CHUNK_SIZE) {
+    const chunk = schools.slice(i, i + CHUNK_SIZE);
+    const results = await Promise.all(chunk.map(processSchool));
+    perSchool.push(...results);
+  }
 
   // 4. 슬라이딩 윈도우 cleanup (전 학교 공통, 키 있을 때만)
   const prune = mirrorOn ? await pruneOldPhotos(ymd) : { enabled: false, pruned: 0 };
