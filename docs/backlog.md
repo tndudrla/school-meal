@@ -4,7 +4,72 @@
 실행하면 work-log 로 옮기고 여기서 지운다. 메모 그대로 남겨두면 6개월 후
 "왜 안 했지" 가 안 보임.
 
-마지막 정리: 2026-04-26 (Stage 12 까지 작업 후)
+마지막 정리: 2026-04-26 (Stage 12 + 폭증 대비 메모 추가)
+
+---
+
+## 🚨 트래픽 폭증 대비 (Scaling)
+
+**배경**: 2026-04-26 — "카톡 단톡방 홍보 어떻게?" 질문 후, 홍보 효과 보기
+전에 **사이트가 안 멈추는 게 우선** 이라는 결론. 단톡방 한 곳 풀려도
+Vercel Hobby 한도(함수 호출 100K/월) 쉽게 초과 가능. 학교 홈페이지 직접
+호출이 폭주하면 IP 차단으로 cron 미러까지 망가지는 cascade failure 위험.
+
+**현재(2026-04-26) 결정**: 코드 변경 없이 **메모만**. 폭증 징후 보이거나
+홍보 적극 나설 때 사전 처방부터 실행.
+
+### 진단된 위험 (위험도 순)
+
+| 위험 | 위치 | 영향도 |
+| --- | --- | --- |
+| 🔴 미러 miss 시 학교 홈페이지 직접 fetch | `src/app/api/meal/photo/route.ts:43~57` | 학교 IP 차단 → cron 까지 망가지는 cascade failure |
+| 🟡 Vercel Hobby 한도 + Analytics 비활성 | Vercel Dashboard | 한도 임박해도 모름 |
+| 🟡 `/api/meal` 응답 Cache-Control 없음 | `src/app/api/meal/route.ts` | 같은 (학교·날짜) 도 매번 함수 호출 |
+| 🟢 피드백 도배 (VPN IP 우회) | `src/lib/feedback.ts` | 30초 cooldown 만으론 부족 — 우선순위 낮음 |
+
+### 폭증 발생 시 즉시 대응 카드
+
+진단 시점에 빠르게 결정:
+
+1. **Vercel Pro 업그레이드** ($20/월) — 즉시 적용. 함수 한도 100K → 1M.
+   비영리 톤이라 망설여지나 한도 초과로 전체 다운보다 나음
+2. **Cloudflare 앞단** — 무료. 도메인 nameserver 변경 → CDN 추가 캐싱
+3. **유지보수 페이지 토글** — 환경변수 `MAINTENANCE=1` 인 simple HTML 미리
+   만들어 두기. 한도 초과 시 다운 대신 의도된 점검 페이지 노출
+4. **자체 서버 이전** — Hetzner/Oracle Free Tier. 시간 걸림 + 운영 부담 큼
+
+### 사전 처방 (실행 시 작업 순서)
+
+폭증 전에 미리 깔아두면 한도 더 늦게 도달:
+
+1. **`/api/meal/photo` 학교 폴백 제거** — 미러 only 로 변경. 미러에 없으면
+   "사진 준비중" 으로 표시. cron 이 어차피 하루 3회 워밍하니 시간 지나면
+   자동 미러링됨. **cascade failure 영구 방지가 핵심**
+2. **`/api/meal` 응답 Cache-Control 추가** — `public, s-maxage=1800,
+   stale-while-revalidate=86400`. CDN 30분 캐시 → 같은 (학교·날짜) 함수
+   호출 1회로 압축
+3. **미러 miss 캐시 시간 늘리기** — `src/app/api/meal/photo/route.ts` 의
+   `CACHE_SHORT` (현재 60초) → 1800 (30분). 어차피 cron 30분 내 안 도니까
+4. **`@vercel/analytics` 설치 + layout.tsx 끼움** — 무료. Web Vitals + 함수
+   호출 추적 시작
+5. **Vercel Dashboard 작업** (사용자 직접):
+   - Analytics 탭 → Enable
+   - Settings → Usage → Alert 임계값 (예: 70%) 설정
+
+### 트리거 조건 (언제 위 처방 실행하나)
+
+다음 중 하나라도 true 면 사전 처방 실행:
+- 카톡 단톡방 홍보 결정 직전
+- 사이트 일일 진입 100명 이상 안정화
+- Vercel Analytics 에서 함수 호출 한도 50% 도달
+
+### 의도적으로 안 하는 것 (당분간)
+
+- **rate limit 미들웨어** (next-rate-limit 등) — Vercel CDN 캐시 강화로
+  대부분 흡수. 진짜 abuse 보면 그때 추가
+- **피드백 도배 강화 (hCaptcha 등)** — 트래픽 자체가 작을 때 우선순위 낮음
+- **Cloudflare 사전 적용** — DNS 변경 부담 vs 효과 미지수. 한도 임박 시점에
+  결정
 
 ---
 
