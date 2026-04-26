@@ -52,6 +52,7 @@
 - [Stage 11-1~11-8 — 가벼운 미세 개선](#stage-11-1--11-8--가벼운-미세-개선-묶음-2026-04-26) — 폰트 임베드, lightbox, 토스트, 별칭 검색 등
 - [Stage 11-9 — cron 영양교사 타이밍](#stage-11-9--cron-스케줄-영양교사-업로드-타이밍에-맞춤-2026-04-26)
 - [Stage 12 — 익명 개발 건의사항 + 추천](#stage-12--익명-개발-건의사항--추천-2026-04-26) — Supabase 인앱 피드백 보드
+- [Stage 12-1 — 본인 수정/삭제 (localStorage 토큰)](#stage-12-1--본인-수정삭제-localstorage-토큰-2026-04-26) — 익명 유지하며 작성자만 수정/삭제
 
 ### 운영·사고 (Stage 13 시리즈, 2026-04-26)
 미러 파이프라인이 학교당 1~3장만 채우는 문제를 진단·처방하다가 Pro 업그레이드로 종결.
@@ -1453,6 +1454,74 @@ client_fingerprint (도배 방지용 IP+UA 해시), hidden (욕설 사후 숨김
 - 사후 숨김: `update feedback set hidden = true where id = '...';`
 - 통째 삭제: `delete from feedback where id = '...';`
 - 어이없는 추천 수: hidden 처리 권장 (히스토리 보존)
+
+---
+
+## Stage 12-1 — 본인 수정/삭제 (localStorage 토큰) (2026-04-26)
+
+### 발단
+
+Stage 12 후 사용자 요청: "작성자는 삭제하거나 수정하게도 할 수 있을까?
+익명이다보니까 그게 가능할지는 모르겠네."
+
+익명 유지 + 본인 수정/삭제는 보통 모순처럼 보이지만 **localStorage 토큰** 방식으로 가능. 비영리·개발 단계라 보안 수준은 낮지만 충분.
+
+### 동작 원리
+
+1. **작성**: 서버가 평문 UUID(`crypto.randomUUID()`) 생성 → DB 엔
+   sha256 해시 (`edit_token_hash`) 만 저장. 평문은 응답으로 1회 클라이언트에 전달
+2. **클라이언트**: 평문을 `localStorage.feedbackEditTokens` ({ [id]: token })
+   객체로 보관
+3. **수정/삭제**: `Authorization: Bearer <token>` 헤더로 전달.
+   서버가 sha256 해시 비교
+4. **타인 글**: localStorage 토큰 없으니 ✏️/🗑️ 버튼 자체가 안 보임
+
+평문 토큰을 URL 이나 body 가 아닌 **헤더(Authorization)** 로 전달 — 로그/캐시 노출 회피.
+
+### 한계 (의도된 트레이드오프)
+
+- **다른 기기·브라우저 → 못 고침**: localStorage 가 기기별이라 의도된 트레이드오프
+- **시크릿 모드 → 다음 방문에 못 고침**: 동일
+- **localStorage 지움 → 영구 잠김**: 동일
+
+UI 하단에 한 줄 안내: "본인 글은 작성한 기기에서만 수정·삭제할 수 있어요"
+
+운영자는 Supabase 콘솔에서 hidden/delete 가능 (Stage 12 그대로).
+
+### 변경 파일
+
+- 신규: `docs/migrations/stage12_1_feedback_edit_token.sql` — `edit_token_hash text` 컬럼 추가 (멱등)
+- 수정: `src/lib/feedback.ts` — token 생성/검증, `updateFeedback` / `deleteFeedback` 함수
+- 수정: `src/app/api/feedback/route.ts` — POST 응답에 `editToken` 1회 포함
+- 신규: `src/app/api/feedback/[id]/route.ts` — PATCH / DELETE (Bearer token 헤더)
+- 수정: `src/components/FeedbackBoard.tsx` — `feedbackEditTokens` localStorage,
+  본인 글 ✏️ 인라인 수정 textarea, 🗑️ confirm 후 삭제
+
+### RLS 정책 영향
+
+기존 RLS 그대로 (anon = read-only, service role 만 write). 본인 수정/삭제도
+**API 라우트의 service role 클라이언트** 가 토큰 검증 후 수행 — 직접 anon 쓰기 X.
+
+### 의도적으로 안 한 것
+
+- **편집 히스토리** — 글 수정 이력 보관 X. 단순 덮어쓰기. 운영 단순화
+- **수정 시간 표시** — 보드 톤이 가벼우니 "수정됨" 라벨도 X. 사용자가 신경 안 쓰게
+- **토큰 만료** — 영구. 어차피 localStorage 가 자연 만료 역할
+- **여러 기기 동기화** — 비밀번호/로그인 필요 → 익명 본질 깨짐. 한계 그대로 안내
+
+### 변경 후 동선 시나리오
+
+1. 사용자가 "오타가 있어서 수정하고 싶어요" → 자기 글 옆에 ✏️ 버튼 보이고 인라인 수정
+2. 다른 기기에서 오면 본인 글이라도 ✏️ 안 보임 (안내 문구 확인 후 새 글 등록 또는 운영자에게 요청)
+3. 시크릿 모드에서 작성 → 다음 방문 시 본인 글 인식 안 됨 (수정 불가)
+
+### 마이그레이션 안내
+
+사용자가 Supabase Dashboard → SQL Editor 에서
+`docs/migrations/stage12_1_feedback_edit_token.sql` 한 번 실행 필요.
+
+기존 글들은 `edit_token_hash` NULL → 기존 작성자도 수정/삭제 불가 (정상).
+새 글부터 토큰 발급되어 작성자만 수정/삭제 가능.
 
 ---
 

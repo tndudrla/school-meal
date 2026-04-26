@@ -11,6 +11,7 @@ interface FeedbackItem {
 
 const VOTED_KEY = 'votedFeedbackIds';
 const COOLDOWN_KEY = 'lastFeedbackPostAt';
+const TOKENS_KEY = 'feedbackEditTokens'; // { [id]: token } 객체
 const COOLDOWN_MS = 30_000;
 
 const MIN_LEN = 5;
@@ -35,11 +36,33 @@ function writeVotedSet(set: Set<string>) {
   }
 }
 
+// 본인 글 토큰 보관 (Stage 12-1). 객체 형태 { [feedbackId]: editToken }.
+// 다른 기기/브라우저 가면 사라짐 — 의도된 트레이드오프 (익명 본질).
+function readTokens(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(TOKENS_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    return obj && typeof obj === 'object' ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeTokens(map: Record<string, string>) {
+  try {
+    window.localStorage.setItem(TOKENS_KEY, JSON.stringify(map));
+  } catch {
+    // 무시
+  }
+}
+
 /**
- * 익명 개발 건의사항 보드 (Stage 12).
+ * 익명 개발 건의사항 보드 (Stage 12, 12-1 본인 수정/삭제).
  * - 풋터 아래 위치
  * - 추천 많은 순 정렬
  * - 추천 중복은 localStorage 로 관리
+ * - 본인 글(localStorage 토큰 보유) 만 수정/삭제 버튼 노출
  */
 export default function FeedbackBoard() {
   const [items, setItems] = useState<FeedbackItem[] | null>(null);
@@ -49,10 +72,15 @@ export default function FeedbackBoard() {
   const [error, setError] = useState<string | null>(null);
   const [voted, setVoted] = useState<Set<string>>(new Set());
   const [cooldownLeft, setCooldownLeft] = useState(0);
+  const [tokens, setTokens] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
 
   // mount: 목록 + localStorage 초기 로드
   useEffect(() => {
     setVoted(readVotedSet());
+    setTokens(readTokens());
     refresh();
     // 진행 중인 cooldown 복원
     const last = parseInt(
@@ -101,7 +129,12 @@ export default function FeedbackBoard() {
         setError(data.error ?? '저장에 실패했어요');
         return;
       }
-      // 성공 — 폼 비우기, cooldown 시작, 목록 새로고침
+      // 성공 — 토큰 저장, 폼 비우기, cooldown 시작, 목록 새로고침
+      if (data.id && data.editToken) {
+        const next = { ...tokens, [data.id]: data.editToken };
+        setTokens(next);
+        writeTokens(next);
+      }
       setBody('');
       const now = Date.now();
       window.localStorage.setItem(COOLDOWN_KEY, String(now));
@@ -153,6 +186,76 @@ export default function FeedbackBoard() {
             )
           : prev
       );
+    }
+  }
+
+  function startEdit(it: FeedbackItem) {
+    setEditingId(it.id);
+    setEditBody(it.body);
+    setEditError(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditBody('');
+    setEditError(null);
+  }
+
+  async function saveEdit(id: string) {
+    const token = tokens[id];
+    if (!token) return;
+    const trimmedEdit = editBody.trim();
+    if (trimmedEdit.length < MIN_LEN || trimmedEdit.length > MAX_LEN) {
+      setEditError(`${MIN_LEN}자 이상 ${MAX_LEN}자 이하로 입력해주세요`);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/feedback/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ body: trimmedEdit }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEditError(data.error ?? '수정에 실패했어요');
+        return;
+      }
+      setItems((prev) =>
+        prev
+          ? prev.map((it) => (it.id === id ? { ...it, body: trimmedEdit } : it))
+          : prev
+      );
+      cancelEdit();
+    } catch {
+      setEditError('수정에 실패했어요');
+    }
+  }
+
+  async function remove(id: string) {
+    const token = tokens[id];
+    if (!token) return;
+    if (!window.confirm('이 글을 정말 삭제할까요?')) return;
+    try {
+      const res = await fetch(`/api/feedback/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        window.alert(data.error ?? '삭제에 실패했어요');
+        return;
+      }
+      // 토큰 제거 + 목록에서 제거
+      const nextTokens = { ...tokens };
+      delete nextTokens[id];
+      setTokens(nextTokens);
+      writeTokens(nextTokens);
+      setItems((prev) => (prev ? prev.filter((it) => it.id !== id) : prev));
+    } catch {
+      window.alert('삭제에 실패했어요');
     }
   }
 
@@ -228,6 +331,8 @@ export default function FeedbackBoard() {
         <ul className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1">
           {items.map((it) => {
             const hasVoted = voted.has(it.id);
+            const isMine = !!tokens[it.id];
+            const isEditing = editingId === it.id;
             return (
               <li
                 key={it.id}
@@ -248,14 +353,72 @@ export default function FeedbackBoard() {
                     {it.vote_count}
                   </span>
                 </button>
-                <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap break-words flex-1">
-                  {it.body}
-                </p>
+
+                {isEditing ? (
+                  <div className="flex-1">
+                    <textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      maxLength={MAX_LEN + 50}
+                      rows={3}
+                      className="w-full p-2 text-sm bg-amber-50 border border-amber-200 rounded-lg resize-y focus:outline-none focus:border-orange-400"
+                    />
+                    {editError && (
+                      <p className="text-xs text-red-500 mt-1">{editError}</p>
+                    )}
+                    <div className="flex items-center justify-end gap-2 mt-1.5">
+                      <button
+                        onClick={cancelEdit}
+                        className="text-xs px-2.5 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={() => saveEdit(it.id)}
+                        className="text-xs px-2.5 py-1 rounded-full bg-orange-500 hover:bg-orange-600 text-white font-bold"
+                      >
+                        저장
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap break-words">
+                      {it.body}
+                    </p>
+                    {isMine && (
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[10px] text-orange-500/80 font-bold">
+                          내 글
+                        </span>
+                        <button
+                          onClick={() => startEdit(it)}
+                          className="text-[11px] text-stone-500 hover:text-orange-500"
+                          aria-label="수정"
+                        >
+                          ✏️ 수정
+                        </button>
+                        <button
+                          onClick={() => remove(it.id)}
+                          className="text-[11px] text-stone-500 hover:text-red-500"
+                          aria-label="삭제"
+                        >
+                          🗑️ 삭제
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
       )}
+
+      {/* 안내 — 한 줄. localStorage 한계 */}
+      <p className="text-[10px] text-stone-400 mt-3 text-center">
+        본인 글은 작성한 기기에서만 수정·삭제할 수 있어요
+      </p>
     </section>
   );
 }

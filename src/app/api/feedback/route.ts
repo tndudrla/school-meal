@@ -47,5 +47,11 @@ export async function POST(req: NextRequest) {
   if ('error' in result) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
-  return NextResponse.json({ ok: true, id: result.id });
+  // editToken 은 한 번만 응답에 포함 — 클라이언트가 localStorage 보관 후
+  // 수정/삭제 시 동봉. 서버 측 DB 엔 sha256 해시만 저장.
+  return NextResponse.json({
+    ok: true,
+    id: result.id,
+    editToken: result.editToken,
+  });
 }
