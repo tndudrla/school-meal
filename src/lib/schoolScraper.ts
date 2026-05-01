@@ -1,24 +1,38 @@
 /**
- * 경기도교육청(goeay.kr) 학교 홈페이지의 주간 식단 페이지에서
- * 날짜별 급식 사진 URL을 추출한다.
+ * 학교 사진 scraper 라우터.
  *
- * 페이지 구조 (청계초등학교 기준):
+ * 두 도메인 패턴을 분기:
+ *   - goeay: 경기도교육청(goeay.kr / goegu.kr) — 주 단위 폼 POST. 본 파일에서 구현.
+ *   - sen-es: 서울교육청(sen.es.kr) — 캘린더 + AJAX. ./seoulSchoolScraper 위임.
+ *
+ * scrape config 의 `kind` 필드로 분기 (Stage 14-1, 2026-05-02).
+ *
+ * 경기 페이지 구조 (청계초등학교 기준):
  *   form action = /{sysId}/ad/fm/foodmenu/selectFoodMenuView.do (POST)
  *   parameters  = { mi, sysId, schDt: 'YYYY-MM-DD' }
  *   - thead 의 <th> 7개에 YYYY-MM-DD 날짜 표기
  *   - tbody 중식 행의 <td> 7개에 각 날짜 이미지 (없으면 기본 아이콘)
  */
 
-export interface SchoolScrapeTarget {
+import { fetchSenEsWeekPhotos, type SenEsScrapeTarget } from './seoulSchoolScraper';
+
+export interface GoeayScrapeTarget {
+  kind: 'goeay';
   host: string; // 예: chonggye-e.goeay.kr
   sysId: string; // 예: chonggye-e
   mi: string; // 예: 9904 (식단 페이지 메뉴 ID)
 }
 
+/**
+ * 사진 scraper 가 받는 union — schools.ts 의 scrape 필드 타입.
+ * 새 도메인 추가 시 여기에 union 멤버 추가 + 라우터 switch 한 줄.
+ */
+export type SchoolScrape = GoeayScrapeTarget | SenEsScrapeTarget;
+
 const WEEK_CACHE = new Map<string, { at: number; data: Record<string, string> }>();
 const WEEK_TTL_MS = 60 * 60 * 1000; // 1시간
 
-function cacheKey(target: SchoolScrapeTarget, weekStartYmd: string) {
+function cacheKey(target: GoeayScrapeTarget, weekStartYmd: string) {
   return `${target.sysId}:${target.mi}:${weekStartYmd}`;
 }
 
@@ -46,11 +60,11 @@ function dashedToYmd(dashed: string): string {
 }
 
 /**
- * 주 단위로 HTML을 받아 날짜별 사진 URL을 추출한다.
- * 반환: { 'YYYYMMDD': 'https://.../img_xxx.jpg' } — 사진 없는 날짜는 미포함
+ * goeay (경기) 주 단위로 HTML을 받아 날짜별 사진 URL을 추출한다.
+ * 반환: { 'YYYYMMDD': '/upload/img_xxx.jpg' } — 사진 없는 날짜는 미포함
  */
-export async function fetchWeekPhotos(
-  target: SchoolScrapeTarget,
+export async function fetchGoeayWeekPhotos(
+  target: GoeayScrapeTarget,
   ymd: string
 ): Promise<Record<string, string>> {
   const weekStart = getWeekStart(ymd);
@@ -95,7 +109,7 @@ export async function fetchWeekPhotos(
 }
 
 /**
- * HTML 문자열에서 날짜별 사진 URL 매핑을 추출.
+ * goeay HTML 문자열에서 날짜별 사진 URL 매핑을 추출.
  * - thead <th> 에서 날짜 7개 (일~토) 순서 획득
  * - tbody 중식 <tr> 의 <td> 7개를 같은 순서로 훑으며 업로드된 이미지 추출
  * - 기본 아이콘(/images/ad/fm/meal_icon.png)은 무시
@@ -145,13 +159,32 @@ export function parseWeekPhotos(html: string): Record<string, string> {
   return result;
 }
 
-export function toAbsolutePhotoUrl(target: SchoolScrapeTarget, path: string): string {
+/**
+ * 라우터 — schools.ts 의 scrape 필드를 받아 kind 로 분기.
+ * 새 도메인 추가 시 import + switch case 한 줄만.
+ */
+export async function fetchWeekPhotos(
+  target: SchoolScrape,
+  ymd: string
+): Promise<Record<string, string>> {
+  switch (target.kind) {
+    case 'goeay':
+      return fetchGoeayWeekPhotos(target, ymd);
+    case 'sen-es':
+      return fetchSenEsWeekPhotos(target, ymd);
+  }
+}
+
+/**
+ * 상대 경로를 학교 host 기준 절대 URL 로 변환. 두 도메인 공통.
+ */
+export function toAbsolutePhotoUrl(target: SchoolScrape, path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   return `https://${target.host}${path}`;
 }
 
 export async function fetchPhotoForDate(
-  target: SchoolScrapeTarget,
+  target: SchoolScrape,
   ymd: string
 ): Promise<string | null> {
   const map = await fetchWeekPhotos(target, ymd);

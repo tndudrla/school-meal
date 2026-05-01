@@ -8,7 +8,7 @@
  * 사진은 안 보인다.
  */
 
-import type { SchoolScrapeTarget } from './schoolScraper';
+import type { SchoolScrape } from './schoolScraper';
 
 export type SchoolLevel = 'elementary' | 'middle' | 'high';
 
@@ -22,8 +22,12 @@ export interface SchoolConfig {
   region: string;
   /** NEIS Open API 식별자. */
   neis: { atptCode: string; schoolCode: string };
-  /** 학교 홈페이지 사진 스크래핑 가능한 경우의 설정. */
-  scrape?: SchoolScrapeTarget;
+  /**
+   * 학교 홈페이지 사진 스크래퍼 설정.
+   * `kind` 로 도메인 분기 (`'goeay'` 경기 / `'sen-es'` 서울).
+   * 생략 시 메뉴는 보이고 사진은 안 보임 (NEIS only).
+   */
+  scrape?: SchoolScrape;
 }
 
 // 과천시 6개 초등학교. NEIS 코드와 scrape host 는 NEIS Open API 의
@@ -40,7 +44,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 과천',
     neis: { atptCode: 'J10', schoolCode: '7569010' },
-    scrape: { host: 'gwacheon-e.goeay.kr', sysId: 'gwacheon-e', mi: '4417' },
+    scrape: { kind: 'goeay', host: 'gwacheon-e.goeay.kr', sysId: 'gwacheon-e', mi: '4417' },
   },
   kwanmun: {
     id: 'kwanmun',
@@ -48,7 +52,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 과천',
     neis: { atptCode: 'J10', schoolCode: '7569011' },
-    scrape: { host: 'kwanmun-e.goeay.kr', sysId: 'kwanmun-e', mi: '1690' },
+    scrape: { kind: 'goeay', host: 'kwanmun-e.goeay.kr', sysId: 'kwanmun-e', mi: '1690' },
   },
   munwon: {
     id: 'munwon',
@@ -56,7 +60,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 과천',
     neis: { atptCode: 'J10', schoolCode: '7569018' },
-    scrape: { host: 'munwon-e.goeay.kr', sysId: 'munwon-e', mi: '6562' },
+    scrape: { kind: 'goeay', host: 'munwon-e.goeay.kr', sysId: 'munwon-e', mi: '6562' },
   },
   chonggye: {
     id: 'chonggye',
@@ -64,7 +68,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 과천',
     neis: { atptCode: 'J10', schoolCode: '7569109' },
-    scrape: { host: 'chonggye-e.goeay.kr', sysId: 'chonggye-e', mi: '9904' },
+    scrape: { kind: 'goeay', host: 'chonggye-e.goeay.kr', sysId: 'chonggye-e', mi: '9904' },
   },
   gcgh: {
     id: 'gcgh',
@@ -72,7 +76,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 과천',
     neis: { atptCode: 'J10', schoolCode: '7569213' },
-    scrape: { host: 'gcgh-e.goeay.kr', sysId: 'gcgh-e', mi: '4317' },
+    scrape: { kind: 'goeay', host: 'gcgh-e.goeay.kr', sysId: 'gcgh-e', mi: '4317' },
   },
   yulmok: {
     id: 'yulmok',
@@ -80,7 +84,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 과천',
     neis: { atptCode: 'J10', schoolCode: '7569216' },
-    scrape: { host: 'yulmok-e.goeay.kr', sysId: 'yulmok-e', mi: '10984' },
+    scrape: { kind: 'goeay', host: 'yulmok-e.goeay.kr', sysId: 'yulmok-e', mi: '10984' },
   },
 
   // 의왕시 15개교 — scripts/build-school-config.mjs 자동 추출
@@ -90,7 +94,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642003' },
-    scrape: { host: 'galmoecho.goegu.kr', sysId: 'galmoecho', mi: '1287' },
+    scrape: { kind: 'goeay', host: 'galmoecho.goegu.kr', sysId: 'galmoecho', mi: '1287' },
   },
   gocheon: {
     id: 'gocheon',
@@ -98,7 +102,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642004' },
-    scrape: { host: 'gocheoncho.goegu.kr', sysId: 'gocheoncho', mi: '1435' },
+    scrape: { kind: 'goeay', host: 'gocheoncho.goegu.kr', sysId: 'gocheoncho', mi: '1435' },
   },
   naedong: {
     id: 'naedong',
@@ -106,7 +110,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642076' },
-    scrape: { host: 'naedongcho.goegu.kr', sysId: 'naedongcho', mi: '3738' },
+    scrape: { kind: 'goeay', host: 'naedongcho.goegu.kr', sysId: 'naedongcho', mi: '3738' },
   },
   naeson: {
     id: 'naeson',
@@ -114,7 +118,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642014' },
-    scrape: { host: 'naesoncho.goegu.kr', sysId: 'naesoncho', mi: '4194' },
+    scrape: { kind: 'goeay', host: 'naesoncho.goegu.kr', sysId: 'naesoncho', mi: '4194' },
   },
   deokjang: {
     id: 'deokjang',
@@ -122,7 +126,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642016' },
-    scrape: { host: 'deokjangcho.goegu.kr', sysId: 'deokjangcho', mi: '6782' },
+    scrape: { kind: 'goeay', host: 'deokjangcho.goegu.kr', sysId: 'deokjangcho', mi: '6782' },
   },
   morak: {
     id: 'morak',
@@ -130,7 +134,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642077' },
-    scrape: { host: 'morakcho.goegu.kr', sysId: 'morakcho', mi: '5491' },
+    scrape: { kind: 'goeay', host: 'morakcho.goegu.kr', sysId: 'morakcho', mi: '5491' },
   },
   baekwoon: {
     id: 'baekwoon',
@@ -138,7 +142,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642020' },
-    scrape: { host: 'baekwooncho.goegu.kr', sysId: 'baekwooncho', mi: '2348' },
+    scrape: { kind: 'goeay', host: 'baekwooncho.goegu.kr', sysId: 'baekwooncho', mi: '2348' },
   },
   baekunhosu: {
     id: 'baekunhosu',
@@ -146,7 +150,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642141' },
-    scrape: { host: 'baekunhosucho.goegu.kr', sysId: 'baekunhosucho', mi: '6442' },
+    scrape: { kind: 'goeay', host: 'baekunhosucho.goegu.kr', sysId: 'baekunhosucho', mi: '6442' },
   },
   ojeon: {
     id: 'ojeon',
@@ -154,7 +158,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642025' },
-    scrape: { host: 'ojeoncho.goegu.kr', sysId: 'ojeoncho', mi: '4851' },
+    scrape: { kind: 'goeay', host: 'ojeoncho.goegu.kr', sysId: 'ojeoncho', mi: '4851' },
   },
   wanggok: {
     id: 'wanggok',
@@ -162,7 +166,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642026' },
-    scrape: { host: 'wanggokcho.goegu.kr', sysId: 'wanggokcho', mi: '5675' },
+    scrape: { kind: 'goeay', host: 'wanggokcho.goegu.kr', sysId: 'wanggokcho', mi: '5675' },
   },
   uiwangdeokseong: {
     id: 'uiwangdeokseong',
@@ -170,7 +174,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642028' },
-    scrape: { host: 'uiwangdeokseongcho.goegu.kr', sysId: 'uiwangdeokseongcho', mi: '2771' },
+    scrape: { kind: 'goeay', host: 'uiwangdeokseongcho.goegu.kr', sysId: 'uiwangdeokseongcho', mi: '2771' },
   },
   uiwangbugok: {
     id: 'uiwangbugok',
@@ -178,7 +182,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642029' },
-    scrape: { host: 'uiwangbugokcho.goegu.kr', sysId: 'uiwangbugokcho', mi: '3003' },
+    scrape: { kind: 'goeay', host: 'uiwangbugokcho.goegu.kr', sysId: 'uiwangbugokcho', mi: '3003' },
   },
   uiwang: {
     id: 'uiwang',
@@ -186,7 +190,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642030' },
-    scrape: { host: 'uiwangcho.goegu.kr', sysId: 'uiwangcho', mi: '3485' },
+    scrape: { kind: 'goeay', host: 'uiwangcho.goegu.kr', sysId: 'uiwangcho', mi: '3485' },
   },
   uiwangpureun: {
     id: 'uiwangpureun',
@@ -194,7 +198,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642152' },
-    scrape: { host: 'uiwangpureuncho.goegu.kr', sysId: 'uiwangpureuncho', mi: '7471' },
+    scrape: { kind: 'goeay', host: 'uiwangpureuncho.goegu.kr', sysId: 'uiwangpureuncho', mi: '7471' },
   },
   poil: {
     id: 'poil',
@@ -202,7 +206,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 의왕',
     neis: { atptCode: 'J10', schoolCode: '7642126' },
-    scrape: { host: 'poilcho.goegu.kr', sysId: 'poilcho', mi: '5084' },
+    scrape: { kind: 'goeay', host: 'poilcho.goegu.kr', sysId: 'poilcho', mi: '5084' },
   },
 
   // 안양시 41개교 — scripts/build-school-config.mjs 자동 추출
@@ -213,7 +217,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569012' },
-    scrape: { host: 'kwanyang-e.goeay.kr', sysId: 'kwanyang-e', mi: '1753' },
+    scrape: { kind: 'goeay', host: 'kwanyang-e.goeay.kr', sysId: 'kwanyang-e', mi: '1753' },
   },
   kwiin: {
     id: 'kwiin',
@@ -221,7 +225,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569013' },
-    scrape: { host: 'kwiin-e.goeay.kr', sysId: 'kwiin-e', mi: '6187' },
+    scrape: { kind: 'goeay', host: 'kwiin-e.goeay.kr', sysId: 'kwiin-e', mi: '6187' },
   },
   nanum: {
     id: 'nanum',
@@ -229,7 +233,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569014' },
-    scrape: { host: 'nanum-e.goeay.kr', sysId: 'nanum-e', mi: '1848' },
+    scrape: { kind: 'goeay', host: 'nanum-e.goeay.kr', sysId: 'nanum-e', mi: '1848' },
   },
   daran: {
     id: 'daran',
@@ -237,7 +241,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569015' },
-    scrape: { host: 'daran-e.goeay.kr', sysId: 'daran-e', mi: '6258' },
+    scrape: { kind: 'goeay', host: 'daran-e.goeay.kr', sysId: 'daran-e', mi: '6258' },
   },
   dongan: {
     id: 'dongan',
@@ -245,7 +249,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569017' },
-    scrape: { host: 'dongan-e.goeay.kr', sysId: 'dongan-e', mi: '6342' },
+    scrape: { kind: 'goeay', host: 'dongan-e.goeay.kr', sysId: 'dongan-e', mi: '6342' },
   },
   minbaeg: {
     id: 'minbaeg',
@@ -253,7 +257,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569021' },
-    scrape: { host: 'minbaeg-e.goeay.kr', sysId: 'minbaeg-e', mi: '2479' },
+    scrape: { kind: 'goeay', host: 'minbaeg-e.goeay.kr', sysId: 'minbaeg-e', mi: '2479' },
   },
   beolmal: {
     id: 'beolmal',
@@ -261,7 +265,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569023' },
-    scrape: { host: 'beolmal-e.goeay.kr', sysId: 'beolmal-e', mi: '3838' },
+    scrape: { kind: 'goeay', host: 'beolmal-e.goeay.kr', sysId: 'beolmal-e', mi: '3838' },
   },
   bumgye: {
     id: 'bumgye',
@@ -269,7 +273,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569024' },
-    scrape: { host: 'bumgye-e.goeay.kr', sysId: 'bumgye-e', mi: '3632' },
+    scrape: { kind: 'goeay', host: 'bumgye-e.goeay.kr', sysId: 'bumgye-e', mi: '3632' },
   },
   burim: {
     id: 'burim',
@@ -277,7 +281,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569025' },
-    scrape: { host: 'burim-e.goeay.kr', sysId: 'burim-e', mi: '3066' },
+    scrape: { kind: 'goeay', host: 'burim-e.goeay.kr', sysId: 'burim-e', mi: '3066' },
   },
   bisan: {
     id: 'bisan',
@@ -285,7 +289,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569026' },
-    scrape: { host: 'bisan-e.goeay.kr', sysId: 'bisan-e', mi: '3851' },
+    scrape: { kind: 'goeay', host: 'bisan-e.goeay.kr', sysId: 'bisan-e', mi: '3851' },
   },
   sammoru: {
     id: 'sammoru',
@@ -293,7 +297,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569029' },
-    scrape: { host: 'sammoru-e.goeay.kr', sysId: 'sammoru-e', mi: '6894' },
+    scrape: { kind: 'goeay', host: 'sammoru-e.goeay.kr', sysId: 'sammoru-e', mi: '6894' },
   },
   kwanak: {
     id: 'kwanak',
@@ -301,7 +305,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569033' },
-    scrape: { host: 'kwanak-e.goeay.kr', sysId: 'kwanak-e', mi: '7058' },
+    scrape: { kind: 'goeay', host: 'kwanak-e.goeay.kr', sysId: 'kwanak-e', mi: '7058' },
   },
   aynam: {
     id: 'aynam',
@@ -309,7 +313,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569034' },
-    scrape: { host: 'aynam-e.goeay.kr', sysId: 'aynam-e', mi: '2737' },
+    scrape: { kind: 'goeay', host: 'aynam-e.goeay.kr', sysId: 'aynam-e', mi: '2737' },
   },
   aydh: {
     id: 'aydh',
@@ -317,7 +321,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569035' },
-    scrape: { host: 'aydh-e.goeay.kr', sysId: 'aydh-e', mi: '7132' },
+    scrape: { kind: 'goeay', host: 'aydh-e.goeay.kr', sysId: 'aydh-e', mi: '7132' },
   },
   anyangdong: {
     id: 'anyangdong',
@@ -325,7 +329,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569036' },
-    scrape: { host: 'anyangdong-e.goeay.kr', sysId: 'anyangdong-e', mi: '4637' },
+    scrape: { kind: 'goeay', host: 'anyangdong-e.goeay.kr', sysId: 'anyangdong-e', mi: '4637' },
   },
   aybuan: {
     id: 'aybuan',
@@ -333,7 +337,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569037' },
-    scrape: { host: 'aybuan-e.goeay.kr', sysId: 'aybuan-e', mi: '1941' },
+    scrape: { kind: 'goeay', host: 'aybuan-e.goeay.kr', sysId: 'aybuan-e', mi: '1941' },
   },
   buheung: {
     id: 'buheung',
@@ -341,7 +345,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569038' },
-    scrape: { host: 'buheung-e.goeay.kr', sysId: 'buheung-e', mi: '2336' },
+    scrape: { kind: 'goeay', host: 'buheung-e.goeay.kr', sysId: 'buheung-e', mi: '2336' },
   },
   ayshingi: {
     id: 'ayshingi',
@@ -349,7 +353,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569040' },
-    scrape: { host: 'ayshingi-e.goeay.kr', sysId: 'ayshingi-e', mi: '2056' },
+    scrape: { kind: 'goeay', host: 'ayshingi-e.goeay.kr', sysId: 'ayshingi-e', mi: '2056' },
   },
   ayja: {
     id: 'ayja',
@@ -357,7 +361,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569042' },
-    scrape: { host: 'ayja-e.goeay.kr', sysId: 'ayja-e', mi: '7373' },
+    scrape: { kind: 'goeay', host: 'ayja-e.goeay.kr', sysId: 'ayja-e', mi: '7373' },
   },
   indeogwon: {
     id: 'indeogwon',
@@ -365,7 +369,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569046' },
-    scrape: { host: 'indeogwon-e.goeay.kr', sysId: 'indeogwon-e', mi: '7495' },
+    scrape: { kind: 'goeay', host: 'indeogwon-e.goeay.kr', sysId: 'indeogwon-e', mi: '7495' },
   },
   pc: {
     id: 'pc',
@@ -373,7 +377,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569047' },
-    scrape: { host: 'pc-e.goeay.kr', sysId: 'pc-e', mi: '7709' },
+    scrape: { kind: 'goeay', host: 'pc-e.goeay.kr', sysId: 'pc-e', mi: '7709' },
   },
   haeoleum: {
     id: 'haeoleum',
@@ -381,7 +385,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569175' },
-    scrape: { host: 'haeoleum-e.goeay.kr', sysId: 'haeoleum-e', mi: '3522' },
+    scrape: { kind: 'goeay', host: 'haeoleum-e.goeay.kr', sysId: 'haeoleum-e', mi: '3522' },
   },
   ayhogye: {
     id: 'ayhogye',
@@ -389,7 +393,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569048' },
-    scrape: { host: 'ayhogye-e.goeay.kr', sysId: 'ayhogye-e', mi: '3975' },
+    scrape: { kind: 'goeay', host: 'ayhogye-e.goeay.kr', sysId: 'ayhogye-e', mi: '3975' },
   },
   hoseong: {
     id: 'hoseong',
@@ -397,7 +401,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569049' },
-    scrape: { host: 'hoseong-e.goeay.kr', sysId: 'hoseong-e', mi: '7806' },
+    scrape: { kind: 'goeay', host: 'hoseong-e.goeay.kr', sysId: 'hoseong-e', mi: '7806' },
   },
   howon: {
     id: 'howon',
@@ -405,7 +409,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569050' },
-    scrape: { host: 'howon-e.goeay.kr', sysId: 'howon-e', mi: '7863' },
+    scrape: { kind: 'goeay', host: 'howon-e.goeay.kr', sysId: 'howon-e', mi: '7863' },
   },
   heesung: {
     id: 'heesung',
@@ -413,7 +417,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569052' },
-    scrape: { host: 'heesung-e.goeay.kr', sysId: 'heesung-e', mi: '3004' },
+    scrape: { kind: 'goeay', host: 'heesung-e.goeay.kr', sysId: 'heesung-e', mi: '3004' },
   },
   dukchon: {
     id: 'dukchon',
@@ -421,7 +425,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569016' },
-    scrape: { host: 'dukchon-e.goeay.kr', sysId: 'dukchon-e', mi: '4827' },
+    scrape: { kind: 'goeay', host: 'dukchon-e.goeay.kr', sysId: 'dukchon-e', mi: '4827' },
   },
   manan: {
     id: 'manan',
@@ -429,7 +433,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569019' },
-    scrape: { host: 'manan-e.goeay.kr', sysId: 'manan-e', mi: '10584' },
+    scrape: { kind: 'goeay', host: 'manan-e.goeay.kr', sysId: 'manan-e', mi: '10584' },
   },
   myeonghak: {
     id: 'myeonghak',
@@ -437,7 +441,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569020' },
-    scrape: { host: 'myeonghak-e.goeay.kr', sysId: 'myeonghak-e', mi: '6493' },
+    scrape: { kind: 'goeay', host: 'myeonghak-e.goeay.kr', sysId: 'myeonghak-e', mi: '6493' },
   },
   bakdal: {
     id: 'bakdal',
@@ -445,7 +449,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569022' },
-    scrape: { host: 'bakdal-e.goeay.kr', sysId: 'bakdal-e', mi: '3355' },
+    scrape: { kind: 'goeay', host: 'bakdal-e.goeay.kr', sysId: 'bakdal-e', mi: '3355' },
   },
   sambong: {
     id: 'sambong',
@@ -453,7 +457,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569027' },
-    scrape: { host: 'sambong-e.goeay.kr', sysId: 'sambong-e', mi: '9678' },
+    scrape: { kind: 'goeay', host: 'sambong-e.goeay.kr', sysId: 'sambong-e', mi: '9678' },
   },
   samsung: {
     id: 'samsung',
@@ -461,7 +465,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569028' },
-    scrape: { host: 'samsung-e.goeay.kr', sysId: 'samsung-e', mi: '6769' },
+    scrape: { kind: 'goeay', host: 'samsung-e.goeay.kr', sysId: 'samsung-e', mi: '6769' },
   },
   suksu: {
     id: 'suksu',
@@ -469,7 +473,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569030' },
-    scrape: { host: 'suksu-e.goeay.kr', sysId: 'suksu-e', mi: '7001' },
+    scrape: { kind: 'goeay', host: 'suksu-e.goeay.kr', sysId: 'suksu-e', mi: '7001' },
   },
   sinan: {
     id: 'sinan',
@@ -477,7 +481,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569031' },
-    scrape: { host: 'sinan-e.goeay.kr', sysId: 'sinan-e', mi: '2212' },
+    scrape: { kind: 'goeay', host: 'sinan-e.goeay.kr', sysId: 'sinan-e', mi: '2212' },
   },
   ayseo: {
     id: 'ayseo',
@@ -485,7 +489,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569039' },
-    scrape: { host: 'ayseo-e.goeay.kr', sysId: 'ayseo-e', mi: '7235' },
+    scrape: { kind: 'goeay', host: 'ayseo-e.goeay.kr', sysId: 'ayseo-e', mi: '7235' },
   },
   ayangji: {
     id: 'ayangji',
@@ -493,7 +497,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569041' },
-    scrape: { host: 'ayangji-e.goeay.kr', sysId: 'ayangji-e', mi: '2324' },
+    scrape: { kind: 'goeay', host: 'ayangji-e.goeay.kr', sysId: 'ayangji-e', mi: '2324' },
   },
   anyang: {
     id: 'anyang',
@@ -501,7 +505,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569032' },
-    scrape: { host: 'anyang-e.goeay.kr', sysId: 'anyang-e', mi: '4500' },
+    scrape: { kind: 'goeay', host: 'anyang-e.goeay.kr', sysId: 'anyang-e', mi: '4500' },
   },
   ayhoam: {
     id: 'ayhoam',
@@ -509,7 +513,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569043' },
-    scrape: { host: 'ayhoam-e.goeay.kr', sysId: 'ayhoam-e', mi: '4658' },
+    scrape: { kind: 'goeay', host: 'ayhoam-e.goeay.kr', sysId: 'ayhoam-e', mi: '4658' },
   },
   anil: {
     id: 'anil',
@@ -517,7 +521,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569044' },
-    scrape: { host: 'anil-e.goeay.kr', sysId: 'anil-e', mi: '1867' },
+    scrape: { kind: 'goeay', host: 'anil-e.goeay.kr', sysId: 'anil-e', mi: '1867' },
   },
   yeonhyeon: {
     id: 'yeonhyeon',
@@ -525,7 +529,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569045' },
-    scrape: { host: 'yeonhyeon-e.goeay.kr', sysId: 'yeonhyeon-e', mi: '3010' },
+    scrape: { kind: 'goeay', host: 'yeonhyeon-e.goeay.kr', sysId: 'yeonhyeon-e', mi: '3010' },
   },
   hwachang: {
     id: 'hwachang',
@@ -533,7 +537,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 안양',
     neis: { atptCode: 'J10', schoolCode: '7569051' },
-    scrape: { host: 'hwachang-e.goeay.kr', sysId: 'hwachang-e', mi: '5338' },
+    scrape: { kind: 'goeay', host: 'hwachang-e.goeay.kr', sysId: 'hwachang-e', mi: '5338' },
   },
 
   // 경기 군포 — 군포의왕 통합 교육청 (의왕 측은 위 의왕 그룹 참고).
@@ -543,7 +547,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642010' },
-    scrape: { host: 'gunpocho.goegu.kr', sysId: 'gunpocho', mi: '2365' },
+    scrape: { kind: 'goeay', host: 'gunpocho.goegu.kr', sysId: 'gunpocho', mi: '2365' },
   },
   geumjeong: {
     id: 'geumjeong',
@@ -551,7 +555,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642013' },
-    scrape: { host: 'geumjeongcho.goegu.kr', sysId: 'geumjeongcho', mi: '5307' },
+    scrape: { kind: 'goeay', host: 'geumjeongcho.goegu.kr', sysId: 'geumjeongcho', mi: '5307' },
   },
   sanbon: {
     id: 'sanbon',
@@ -559,7 +563,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642021' },
-    scrape: { host: 'sanboncho.goegu.kr', sysId: 'sanboncho', mi: '6205' },
+    scrape: { kind: 'goeay', host: 'sanboncho.goegu.kr', sysId: 'sanboncho', mi: '6205' },
   },
   gunpoyangjeong: {
     id: 'gunpoyangjeong',
@@ -567,7 +571,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642008' },
-    scrape: { host: 'gunpoyangjeongcho.goegu.kr', sysId: 'gunpoyangjeongcho', mi: '1783' },
+    scrape: { kind: 'goeay', host: 'gunpoyangjeongcho.goegu.kr', sysId: 'gunpoyangjeongcho', mi: '1783' },
   },
   heungjin: {
     id: 'heungjin',
@@ -575,7 +579,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642032' },
-    scrape: { host: 'heungjincho.goegu.kr', sysId: 'heungjincho', mi: '4916' },
+    scrape: { kind: 'goeay', host: 'heungjincho.goegu.kr', sysId: 'heungjincho', mi: '4916' },
   },
   gwangjeong: {
     id: 'gwangjeong',
@@ -583,7 +587,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642007' },
-    scrape: { host: 'gwangjeongcho.goegu.kr', sysId: 'gwangjeongcho', mi: '1619' },
+    scrape: { kind: 'goeay', host: 'gwangjeongcho.goegu.kr', sysId: 'gwangjeongcho', mi: '1619' },
   },
   neungnae: {
     id: 'neungnae',
@@ -591,7 +595,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642015' },
-    scrape: { host: 'neungnaecho.goegu.kr', sysId: 'neungnaecho', mi: '4995' },
+    scrape: { kind: 'goeay', host: 'neungnaecho.goegu.kr', sysId: 'neungnaecho', mi: '4995' },
   },
   gungnae: {
     id: 'gungnae',
@@ -599,7 +603,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642012' },
-    scrape: { host: 'gungnaecho.goegu.kr', sysId: 'gungnaecho', mi: '4343' },
+    scrape: { kind: 'goeay', host: 'gungnaecho.goegu.kr', sysId: 'gungnaecho', mi: '4343' },
   },
   taeeul: {
     id: 'taeeul',
@@ -607,7 +611,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642031' },
-    scrape: { host: 'taeeulcho.goegu.kr', sysId: 'taeeulcho', mi: '4138' },
+    scrape: { kind: 'goeay', host: 'taeeulcho.goegu.kr', sysId: 'taeeulcho', mi: '4138' },
   },
   ogeum: {
     id: 'ogeum',
@@ -615,7 +619,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642024' },
-    scrape: { host: 'ogeumcho.goegu.kr', sysId: 'ogeumcho', mi: '3982' },
+    scrape: { kind: 'goeay', host: 'ogeumcho.goegu.kr', sysId: 'ogeumcho', mi: '3982' },
   },
   songan: {
     id: 'songan',
@@ -623,7 +627,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642143' },
-    scrape: { host: 'songancho.goegu.kr', sysId: 'songancho', mi: '6692' },
+    scrape: { kind: 'goeay', host: 'songancho.goegu.kr', sysId: 'songancho', mi: '6692' },
   },
   gunpodaeya: {
     id: 'gunpodaeya',
@@ -631,7 +635,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642075' },
-    scrape: { host: 'gunpodaeyacho.goegu.kr', sysId: 'gunpodaeyacho', mi: '6864' },
+    scrape: { kind: 'goeay', host: 'gunpodaeyacho.goegu.kr', sysId: 'gunpodaeyacho', mi: '6864' },
   },
   haneol: {
     id: 'haneol',
@@ -639,12 +643,13 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '경기 군포',
     neis: { atptCode: 'J10', schoolCode: '7642122' },
-    scrape: { host: 'haneolcho.goegu.kr', sysId: 'haneolcho', mi: '5847' },
+    scrape: { kind: 'goeay', host: 'haneolcho.goegu.kr', sysId: 'haneolcho', mi: '5847' },
   },
 
-  // 서울 서초구 — 첫 다른 시도(B10) 확장 (Stage 14, 2026-04-27).
-  // sen.es.kr 캘린더 + AJAX 구조라 사진 scraper 미지원 → NEIS 메뉴만 노출.
-  // 사진 미러는 Stage 14-1 에서 별도 처방 (seoulSchoolScraper 신규).
+  // 서울 서초구 — 첫 다른 시도(B10) 확장 (Stage 14, 2026-04-27 + Stage 14-1 사진, 2026-05-02).
+  // 23교 sen.es.kr — Stage 14-1 에서 seoulSchoolScraper 신규 + scrape 부여.
+  // 1교 사립 (seoul_gyeseong, gyeseong1882.es.kr) — sen.es.kr 패턴 아님 → 메뉴만, scrape 보류.
+  // host 는 NEIS HMPG_ADRES 일괄 추출값 그대로 (id 와 subdomain 이 다른 학교 다수: banpo→seoulbanpo, seowon→seo-won, seoil→seoulseoil).
   // id 는 모두 `seoul_` prefix — 다른 시도 학교와 명확히 구분 + 충돌 회피.
   seoul_gyeseong: {
     id: 'seoul_gyeseong',
@@ -652,6 +657,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091368' },
+    // sajip 학교 — gyeseong1882.es.kr 패턴 별도 분석 필요. Stage 14-2+ 에서.
   },
   seoul_snueps: {
     id: 'seoul_snueps',
@@ -659,6 +665,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091367' },
+    scrape: { kind: 'sen-es', host: 'snueps.sen.es.kr' },
   },
   seoul_maeheon: {
     id: 'seoul_maeheon',
@@ -666,6 +673,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091384' },
+    scrape: { kind: 'sen-es', host: 'maeheon.sen.es.kr' },
   },
   seoul_banwon: {
     id: 'seoul_banwon',
@@ -673,6 +681,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091385' },
+    scrape: { kind: 'sen-es', host: 'banwon.sen.es.kr' },
   },
   seoul_banpo: {
     id: 'seoul_banpo',
@@ -680,6 +689,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091386' },
+    scrape: { kind: 'sen-es', host: 'seoulbanpo.sen.es.kr' },
   },
   seoul_bangbae: {
     id: 'seoul_bangbae',
@@ -687,6 +697,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091387' },
+    scrape: { kind: 'sen-es', host: 'bangbae.sen.es.kr' },
   },
   seoul_bangil: {
     id: 'seoul_bangil',
@@ -694,6 +705,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091388' },
+    scrape: { kind: 'sen-es', host: 'bangil.sen.es.kr' },
   },
   seoul_banghyun: {
     id: 'seoul_banghyun',
@@ -701,6 +713,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091389' },
+    scrape: { kind: 'sen-es', host: 'banghyun.sen.es.kr' },
   },
   seoul_seorae: {
     id: 'seoul_seorae',
@@ -708,6 +721,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091392' },
+    scrape: { kind: 'sen-es', host: 'seorae.sen.es.kr' },
   },
   seoul_seowon: {
     id: 'seoul_seowon',
@@ -715,6 +729,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091393' },
+    scrape: { kind: 'sen-es', host: 'seo-won.sen.es.kr' },
   },
   seoul_seoi: {
     id: 'seoul_seoi',
@@ -722,6 +737,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091394' },
+    scrape: { kind: 'sen-es', host: 'seoi.sen.es.kr' },
   },
   seoul_seoil: {
     id: 'seoul_seoil',
@@ -729,6 +745,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091395' },
+    scrape: { kind: 'sen-es', host: 'seoulseoil.sen.es.kr' },
   },
   seoul_seocho: {
     id: 'seoul_seocho',
@@ -736,6 +753,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091396' },
+    scrape: { kind: 'sen-es', host: 'seocho.sen.es.kr' },
   },
   seoul_sindong: {
     id: 'seoul_sindong',
@@ -743,6 +761,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091399' },
+    scrape: { kind: 'sen-es', host: 'sindong.sen.es.kr' },
   },
   seoul_sinjung: {
     id: 'seoul_sinjung',
@@ -750,6 +769,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091400' },
+    scrape: { kind: 'sen-es', host: 'sinjung.sen.es.kr' },
   },
   seoul_yangjae: {
     id: 'seoul_yangjae',
@@ -757,6 +777,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091402' },
+    scrape: { kind: 'sen-es', host: 'yangjae.sen.es.kr' },
   },
   seoul_eonnam: {
     id: 'seoul_eonnam',
@@ -764,6 +785,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091404' },
+    scrape: { kind: 'sen-es', host: 'eonnam.sen.es.kr' },
   },
   seoul_woomyeon: {
     id: 'seoul_woomyeon',
@@ -771,6 +793,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091419' },
+    scrape: { kind: 'sen-es', host: 'woomyeon.sen.es.kr' },
   },
   seoul_woosol: {
     id: 'seoul_woosol',
@@ -778,6 +801,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091460' },
+    scrape: { kind: 'sen-es', host: 'woosol.sen.es.kr' },
   },
   seoul_wooam: {
     id: 'seoul_wooam',
@@ -785,6 +809,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091410' },
+    scrape: { kind: 'sen-es', host: 'wooam.sen.es.kr' },
   },
   seoul_wonmyong: {
     id: 'seoul_wonmyong',
@@ -792,6 +817,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091411' },
+    scrape: { kind: 'sen-es', host: 'wonmyong.sen.es.kr' },
   },
   seoul_wonchon: {
     id: 'seoul_wonchon',
@@ -799,6 +825,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091412' },
+    scrape: { kind: 'sen-es', host: 'wonchon.sen.es.kr' },
   },
   seoul_isu: {
     id: 'seoul_isu',
@@ -806,6 +833,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091413' },
+    scrape: { kind: 'sen-es', host: 'isu.sen.es.kr' },
   },
   seoul_jamwon: {
     id: 'seoul_jamwon',
@@ -813,6 +841,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091415' },
+    scrape: { kind: 'sen-es', host: 'jamwon.sen.es.kr' },
   },
 };
 

@@ -70,6 +70,7 @@
 
 ### 지역 확장 (Stage 14 시리즈, 2026-04-27 ~ )
 - [Stage 14 — 서울 서초구 24교 (메뉴 only)](#stage-14--서울-서초구-24교-메뉴-only-2026-04-27) — 첫 다른 시도(B10) 확장, NEIS 메뉴만 (사진 scraper 분리)
+- [Stage 14-1 — 서울 sen.es.kr 사진 scraper](#stage-14-1--서울-senesk-사진-scraper-2026-05-02) — 23교 사진 미러 활성화, discriminated union + kind 분기, 라이브 검증 시 GET vs POST 차이 발견·처방
 
 ### 도구·운영 (2026-05-01 ~ )
 - [Slack 양방향 운영 셋업](#slack-양방향-운영-셋업-2026-05-01) — `Powerdaily` 워크스페이스 + `#claude-code` 채널, 폰 ↔ PC 작업 전환. 상세 가이드는 [`docs/slack-workflow.md`](./slack-workflow.md)
@@ -2086,3 +2087,96 @@ Anthropic 공식 명시:
 - [ ] `Schoo-meal` webhook 이름 정정 (`school-meal` 오타)
 
 상세 운영 가이드: [`docs/slack-workflow.md`](./slack-workflow.md)
+
+---
+
+## Stage 14-1 — 서울 sen.es.kr 사진 scraper (2026-05-02)
+
+### 발단
+
+Stage 14 에서 서울 서초구 24교를 NEIS 메뉴 only 로 등록. 사진 자리는 텍스트
+폴백, 카톡 OG 사진 카드도 안 뜸. 영양교사 선생님이 학교 홈페이지에 올린
+사진을 24교 사용자에게 보여주려면 별도 scraper 필요.
+
+### 발견 — sen.es.kr 페이지 구조
+
+경기 `*.goeay.kr` (주 단위 폼 POST) 와 완전히 다름:
+
+1. 학교 루트 `/` HTML 안 '급식일정' link → `href="/{menuId}/subMenu.do"` —
+   menuId 는 학교마다 다름 (서초 = 77335, banpo = 27060)
+2. 캘린더 페이지 `/{menuId}/subMenu.do` 의 `<td>` 안 onclick:
+   `onclick="fnDetail('{mlsvId}', this);"` 텍스트 'MMDD'
+3. detail AJAX:
+   `POST /dggb/module/mlsv/selectMlsvDetailPopup.do  body: mlsvId={N}`
+   응답 HTML 안 사진:
+   `<img src="/dggb/module/file/selectImageView.do?atchFileId=...">`
+
+### 결정 (사용자 선택)
+
+| 항목 | 채택 | 대안 (기각 이유) |
+|---|---|---|
+| 타입 분기 | Discriminated union + `kind` 필드 | host 패턴 추론 (확장성↓) / 외부 분기 모듈 (분산↑) |
+| menuId 발견 | 런타임 자동 (학교 루트 → '급식' 링크 파싱, 24h 캐시) | schools.ts 박기 (학교 추가 부담↑) |
+| 사진 범위 | 1주일치 (월~금) | 1일치 (효율↓) / 1달치 (서버 부담↑) |
+
+### 변경
+
+- `src/lib/seoulSchoolScraper.ts` 신규 (~210 lines) — `discoverMenuId`,
+  `parseCalendarMlsvIds`, `fetchDetailHtml`, `parsePhotoSrc`,
+  `fetchSenEsWeekPhotos`. 메뉴ID/주간 사진 두 단계 메모리 캐시.
+- `src/lib/schoolScraper.ts` — `SchoolScrapeTarget` → `GoeayScrapeTarget`
+  + `kind: 'goeay'` 필드. `fetchWeekPhotos` 가 `kind` 분기 라우터로 변경
+  (기존 구현은 `fetchGoeayWeekPhotos` rename). `toAbsolutePhotoUrl`,
+  `fetchPhotoForDate` 도 union 받음. `SchoolScrape` union 타입 export.
+- `src/lib/schools.ts` — 76교 모두 `kind: 'goeay'` 일괄 추가, 23교 서울
+  sen.es 학교에 `scrape: { kind: 'sen-es', host: ... }` 부여.
+  (사립 1교 `seoul_gyeseong` 은 `gyeseong1882.es.kr` 별도 패턴이라 보류)
+- `src/lib/photoMirror.ts`, `cron/refresh/route.ts`, `meal/photo/route.ts` —
+  **변경 0**. union 받는 라우터 시그니처로 호출 사이트 무수정 호환.
+
+### 운영 사고 — GET vs POST 차이 (라이브 검증 단계 발견)
+
+처음 구현은 GET 으로 캘린더 fetch → 라이브 환경에서 사진 0건. 디버그 결과
+**GET 은 "현재 월" 페이지를 받음** — 5월 초엔 식단 미등록이라 onclick 0.
+저장본 (4월 페이지) 은 POST 응답이라 정상 매치되던 것.
+
+처방: `srhMlsvYear`/`srhMlsvMonth` 명시적 form param 으로 POST. ymd 가
+속한 달을 직접 요청. 4월 페이지 검증 — 25 onclick 매치, 5/5 사진 정상 추출
+(서초·매헌). 정규식 `급식` 라벨도 학교마다 ('급식일정' / '오늘의 급식' /
+'영양/식단') 흔들림 → 텍스트 fallback 으로 첫 `subMenu.do` 매치.
+
+### 운영 사고 — jsessionid 정규화
+
+Detail AJAX 응답의 사진 src 가 `/dggb/.../selectImageView.do;jsessionid=XXX?atchFileId=Y` 형태로 path 에 세션 ID 포함. 매 응답마다 다른 ID라 photoMirror 의 `source_url` 비교가 매번 mismatch → 같은 사진 매번 재다운로드. 처방: `parsePhotoSrc` 가 `;jsessionid=...` strip 후 `?atchFileId=Y` 만 보존. 미러 idempotency 회복.
+
+### 검증 (dev)
+
+- `npm run build` ✅ TypeScript 회귀 0
+- `seoul_seocho` 4월 5일치 사진 정상 수신 (atchFileId 다름 — 다른 사진)
+- `seoul_maeheon` 4월 정상
+- `seoul_banpo` / `seowon` / `jamwon` / `isu` 0건 — 라이브 캘린더 td 자체가
+  빈 `&nbsp;` (학교가 사진 자체를 안 올리는 케이스. NEIS 메뉴만 의존)
+- `chonggye` (경기) 정상 — 76교 회귀 0
+
+### 효과
+
+- 24교 중 **사진 올리는 학교 (현재 측정 2교)** 는 카톡 OG 풍성 사진 카드 부활
+- scraper 분기 인프라 완성 — 다른 시도 추가 시 union 멤버 + switch case
+  한 줄로 확장 가능
+- 사용자 결정 흐름 전부 코드에 반영 — `kind` 명시, menuId 자동 발견, 1주치
+
+### 한계
+
+- 사진 올리는 학교가 24교 중 ~2교 (실측). 남은 22교 사용자는 텍스트 폴백
+  유지. 학교별 행동 차이라 scraper 가 풀 수 없음 — 영양교사·학교 행정에
+  의존
+- 사립 `seoul_gyeseong` 은 별도 패턴 — Stage 14-2+ 에서
+
+### 후속
+
+- Stage 14-2 — 서울 다른 자치구 (강남·송파 등) 확장. 같은 sen.es.kr scraper
+  재사용, schools.ts 만 추가
+- 사립 `gyeseong1882.es.kr` 패턴 분석 — 다른 사립 추가 시 `'gyeseong-es'`
+  같은 새 union 멤버
+- 부산 C10, 대구 D10 도메인 분석 (스파이크 1~5교)
+
