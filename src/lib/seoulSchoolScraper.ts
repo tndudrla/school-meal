@@ -72,8 +72,17 @@ function combineYmd(yyyy: string, mmdd: string): string {
 // ----- menuId 자동 발견 -----------------------------------------------------
 
 /**
- * 학교 루트 페이지 HTML 에서 '급식일정' 링크 → menuId 추출.
+ * 학교 루트 페이지 HTML 에서 식단 캘린더 menuId 발견.
  * 캐시 hit 우선. 실패 시 throw (caller 가 잡아서 빈 weekMap).
+ *
+ * 전략 (Stage 14-1-1, 2026-05-02):
+ *   학교마다 식단 페이지 라벨이 너무 다양 ('급식일정', '급식메뉴', '급식식단표',
+ *   '급식안내', '학교급식', '오늘의 식단', '급식 전체보기' 등 10+ 패턴).
+ *   라벨 정규식 우선순위만으로는 robust 하지 않아, **후보 추출 → 각 후보로
+ *   캘린더 POST → fnDetail count 가장 큰 menuId 채택** 방식.
+ *
+ *   비용: 학교당 root 1회 + 후보 N(보통 2~4)회 POST. menuId 캐시 24h →
+ *   학교당 24h 에 1회만 발생. cron 시점에 흡수 → 사용자 경험 영향 0.
  */
 export async function discoverMenuId(host: string): Promise<string> {
   const cached = MENU_ID_CACHE.get(host);
@@ -85,54 +94,141 @@ export async function discoverMenuId(host: string): Promise<string> {
   if (!res.ok) throw new Error(`root fetch failed: ${res.status}`);
   const html = await res.text();
 
-  const menuId = parseMenuIdFromHtml(html);
-  if (!menuId) {
-    throw new Error('menuId 추출 실패 — 급식일정 링크 못 찾음');
+  const candidates = extractMenuCandidates(html);
+  if (candidates.length === 0) {
+    throw new Error('menuId 후보 추출 실패 — 급식 라벨 link 없음');
   }
 
-  MENU_ID_CACHE.set(host, { at: Date.now(), menuId });
-  return menuId;
+  // 각 후보 캘린더 probe — 가장 큰 fnDetail count 가 진짜 식단 페이지
+  const scored = await Promise.all(
+    candidates.map(async (c) => {
+      const count = await probeCalendarFnDetail(host, c.menuId);
+      return { ...c, count };
+    })
+  );
+  scored.sort((a, b) => b.count - a.count);
+  const best = scored[0];
+  if (!best || best.count === 0) {
+    // 모든 후보가 fnDetail 0 — 학교가 식단 안 올리는 케이스. 캐시는 안 함
+    // (학교가 나중에 올리기 시작하면 다시 발견되도록)
+    throw new Error('모든 menuId 후보의 fnDetail 0 — 학교 식단 페이지 없음');
+  }
+
+  MENU_ID_CACHE.set(host, { at: Date.now(), menuId: best.menuId });
+  return best.menuId;
 }
 
 /**
- * HTML 에서 '급식일정' (또는 '급식') 라벨 가까이의 `/{N}/subMenu.do` link 추출.
- * 학교마다 메뉴 라벨이 약간 흔들릴 수 있어 텍스트 우선 + fallback 으로 첫 매치.
+ * root HTML 에서 가능한 menuId 후보 모두 추출.
+ *
+ *  (a) `<a href="/{N}/subMenu.do">급식*|식단*|식사*</a>` — sub link
+ *  (b) `onclick="moveQuickMenuURL('CTC...', '{N}', '...')"` + 인접 텍스트에
+ *      식단 라벨 — quickmenu (sub link 없는 학교, 예: isu)
+ *
+ * 같은 menuId 가 여러 라벨로 노출되는 경우 한 번만. 식단·급식 라벨 없는
+ * link 는 처음부터 후보 X (학교 메뉴 수십개 다 probe 하면 부담).
  */
-export function parseMenuIdFromHtml(html: string): string | null {
-  // 1차: '급식' 라벨 포함된 anchor 의 href
-  const labelRe = /<a[^>]+href=["']\/(\d+)\/subMenu\.do["'][^>]*>([^<]*급식[^<]*)<\/a>/g;
-  const m1 = labelRe.exec(html);
-  if (m1) return m1[1];
+export function extractMenuCandidates(
+  html: string
+): Array<{ menuId: string; label: string }> {
+  const candidates = new Map<string, string>(); // menuId → label
+  const FOOD_LABEL = /급식|식단|식사/;
 
-  // 2차: 첫 subMenu.do 링크 (대부분의 학교 사이트가 급식일정을 메인 메뉴 상단에 둠)
-  const anyRe = /href=["']\/(\d+)\/subMenu\.do["']/;
-  const m2 = html.match(anyRe);
-  if (m2) return m2[1];
+  // (a) sub link
+  const subRe = /<a[^>]+href=["']\/(\d+)\/subMenu\.do["'][^>]*>([^<]+)<\/a>/g;
+  let m: RegExpExecArray | null;
+  while ((m = subRe.exec(html)) !== null) {
+    const menuId = m[1];
+    const label = m[2].trim();
+    if (!FOOD_LABEL.test(label)) continue;
+    if (!candidates.has(menuId)) candidates.set(menuId, label);
+  }
 
-  return null;
+  // (b) quickmenu — 인자 + 인접 500자 안 식단 라벨
+  const qRe =
+    /moveQuickMenuURL\(\s*['"]CTC\d+['"]\s*,\s*['"](\d+)['"][^)]*\)([\s\S]{0,500})/g;
+  while ((m = qRe.exec(html)) !== null) {
+    const menuId = m[1];
+    const ctx = m[2];
+    if (!FOOD_LABEL.test(ctx)) continue;
+    if (candidates.has(menuId)) continue;
+    const labelM = ctx.match(/(급식식단|식단|급식일정|급식안내|학교급식|급식)/);
+    candidates.set(menuId, labelM ? labelM[1] : '(quickmenu)');
+  }
+
+  return [...candidates.entries()].map(([menuId, label]) => ({ menuId, label }));
+}
+
+/**
+ * menuId 후보로 4월 캘린더 POST → fnDetail onclick 매치 수.
+ * 0 이면 식단 페이지 아님 (게시판 등). 양수면 진짜 캘린더.
+ *
+ * Note: probe 는 4월 (검증된 달) 로 고정. 5월 갓 시작 시점엔 식단 미등록이라
+ * fnDetail 0 일 수 있어 menuId 자동 발견이 실패. 4월 같은 안정 시점으로 probe.
+ */
+async function probeCalendarFnDetail(host: string, menuId: string): Promise<number> {
+  try {
+    const res = await fetchWithTimeout(`https://${host}/${menuId}/subMenu.do`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'srhMlsvYear=2026&srhMlsvMonth=04',
+    });
+    if (!res.ok) return 0;
+    const html = await res.text();
+    const matches = html.match(/onclick=["']fnDetail\(\s*'(\d+)'\s*,\s*this\s*\)\s*;?["']/g);
+    return matches ? matches.length : 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ----- 캘린더 파싱 (date → mlsvId) -----------------------------------------
 
 /**
- * 캘린더 HTML 에서 (YYYY 인자) 와 onclick="fnDetail('mlsvId',...)" 텍스트 'MMDD' 매칭.
- * 한 날짜에 mlsvId 여러 개 있으면 첫 번째만. 월~금 5일치만 반환.
+ * 캘린더 HTML 에서 td 단위로 day + mlsvId 매핑 추출.
+ *
+ * 학교마다 anchor 텍스트가 너무 다양 (Stage 14-1-1 발견):
+ *   - '>0428<' (4자리 MMDD) — 서초·매헌
+ *   - '>28<' / '>1<' (1~2자리 day) — 일부 학교
+ *   - '>학교급식<' / '>점심<' (한글 라벨) — isu 등
+ *
+ * → td 안에서 day 숫자(평문) 와 fnDetail mlsvId 를 함께 추출하는 게 robust.
+ * 캘린더 한 칸 = `<td>...day_number...<a onclick="fnDetail('N',this)">label</a>...</td>`
+ *
+ * mm 은 외부에서 받은 month — fetch 시 명시한 srhMlsvMonth 와 동일.
  */
 export function parseCalendarMlsvIds(
   html: string,
   yyyy: string,
+  mm: string,
   weekdays: string[] // 월~금 ['MMDD','MMDD','MMDD','MMDD','MMDD']
 ): Record<string, string> {
   const result: Record<string, string> = {};
-  // <a ... onclick="fnDetail('NNNNNN', this);" ...>MMDD</a>
-  const re = /onclick=["']fnDetail\(\s*'(\d+)'\s*,\s*this\s*\)\s*;?["'][^>]*>(\d{4})</g;
-  let m: RegExpExecArray | null;
+  // tbody 안 td 만 (thead 제외)
+  const tbodyMatch = html.match(/<tbody[\s\S]*?<\/tbody>/i);
+  if (!tbodyMatch) return result;
+  const tbody = tbodyMatch[0];
+
+  // 각 td 추출
+  const tdRe = /<td\b[^>]*>([\s\S]*?)<\/td>/g;
+  let td: RegExpExecArray | null;
   const seen = new Set<string>();
-  while ((m = re.exec(html)) !== null) {
-    const mlsvId = m[1];
-    const mmdd = m[2];
+  while ((td = tdRe.exec(tbody)) !== null) {
+    const inner = td[1];
+    // (1) day 숫자 — 1~31, td 안 평문 가장 처음 매치
+    //    빈 td (`&nbsp;`) 또는 다음 달 칸 거름
+    const dayM = inner.match(/(?:^|>)\s*(\d{1,2})\s*(?:<|\n|\s)/);
+    if (!dayM) continue;
+    const day = parseInt(dayM[1], 10);
+    if (day < 1 || day > 31) continue;
+    // (2) fnDetail mlsvId — 같은 td 안. 여러 개면 첫 번째만 (특수메뉴 보단 점심)
+    const fnM = inner.match(/onclick=["']fnDetail\(\s*'(\d+)'/);
+    if (!fnM) continue;
+    const mlsvId = fnM[1];
+
+    const mmdd = `${mm}${String(day).padStart(2, '0')}`;
     if (!weekdays.includes(mmdd)) continue;
-    if (seen.has(mmdd)) continue; // 같은 날 중복은 첫 번째만
+    if (seen.has(mmdd)) continue;
     seen.add(mmdd);
     result[combineYmd(yyyy, mmdd)] = mlsvId;
   }
@@ -246,7 +342,8 @@ export async function fetchSenEsWeekPhotos(
   }
 
   // 3. date → mlsvId 추출 (월~금)
-  const mlsvByDate = parseCalendarMlsvIds(calendarHtml, yyyy, mmdds);
+  const mm = monday.substring(4, 6);
+  const mlsvByDate = parseCalendarMlsvIds(calendarHtml, yyyy, mm, mmdds);
   if (Object.keys(mlsvByDate).length === 0) return {};
 
   // 4. 각 mlsvId 에 대해 detail AJAX 병렬 호출

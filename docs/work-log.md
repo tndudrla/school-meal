@@ -71,6 +71,7 @@
 ### 지역 확장 (Stage 14 시리즈, 2026-04-27 ~ )
 - [Stage 14 — 서울 서초구 24교 (메뉴 only)](#stage-14--서울-서초구-24교-메뉴-only-2026-04-27) — 첫 다른 시도(B10) 확장, NEIS 메뉴만 (사진 scraper 분리)
 - [Stage 14-1 — 서울 sen.es.kr 사진 scraper](#stage-14-1--서울-senesk-사진-scraper-2026-05-02) — 23교 사진 미러 활성화, discriminated union + kind 분기, 라이브 검증 시 GET vs POST 차이 발견·처방
+- [Stage 14-1-1 — 서초구 사진 누락 회귀 처방](#stage-14-1-1--서초구-사진-누락-회귀-처방-2026-05-02) — 사용자 잠원초 4/28 보고에서 출발. menuId 후보 probe + td-단위 day 추출로 사진 학교 2교 → 19교
 
 ### 도구·운영 (2026-05-01 ~ )
 - [Slack 양방향 운영 셋업](#slack-양방향-운영-셋업-2026-05-01) — `Powerdaily` 워크스페이스 + `#claude-code` 채널, 폰 ↔ PC 작업 전환. 상세 가이드는 [`docs/slack-workflow.md`](./slack-workflow.md)
@@ -2179,4 +2180,102 @@ Detail AJAX 응답의 사진 src 가 `/dggb/.../selectImageView.do;jsessionid=XX
 - 사립 `gyeseong1882.es.kr` 패턴 분석 — 다른 사립 추가 시 `'gyeseong-es'`
   같은 새 union 멤버
 - 부산 C10, 대구 D10 도메인 분석 (스파이크 1~5교)
+
+---
+
+## Stage 14-1-1 — 서초구 사진 누락 회귀 처방 (2026-05-02)
+
+### 발단
+
+Stage 14-1 직후 사용자가 **잠원초 4/28 사진**이 학교 사이트엔 있는데
+앱에선 안 나온다고 보고. Stage 14-1 결과 (사진 가능 2교: seocho/maeheon,
+나머지 22교 0건) 가 "학교가 사진 안 올림" 이 아니라 **scraper 결함** 이었음.
+
+### 진단 — 두 가지 회귀
+
+**Bug A — menuId 발견 라벨 우선순위 부정확**
+- 학교마다 식단 페이지 라벨 천차만별: '급식일정', '급식메뉴', '급식식단표',
+  '급식안내', '학교급식', '오늘의 식단', '급식 전체보기', '급식식단' (10+ 패턴)
+- 잠원초 root 페이지에 `급식게시판`(189699) + `급식식단표`(211455) 둘 다
+  '급식' 라벨. 첫 매치인 게시판으로 가버림 → fnDetail 0건
+- isu 는 sub link 없고 quickmenu `moveQuickMenuURL('CTC001','70518','')` +
+  인접 텍스트 '급식식단' — 이전 정규식이 못 잡음
+- seowon, banwon, bangbae 등 다수 회귀
+
+**Bug B — 캘린더 anchor 텍스트 형식 다양**
+- 서초/매헌: `>0428<` (4자리 MMDD)
+- 잠원/banwon/seowon: `>28<` 또는 `>1<` (1~2자리 day 만)
+- isu: `>학교급식<` (한글 라벨, 숫자 0건)
+- 기존 정규식 `>(\d{4})<` 은 첫 케이스만 매치
+
+### 처방
+
+**`discoverMenuId` — candidate probe 방식**
+- 정규식 5-tier 우선순위 대신 **모든 식단·급식 라벨 link 후보 추출 →
+  각 후보로 캘린더 POST → fnDetail count 가장 큰 menuId 채택**
+- 비용: root 1 fetch + 후보 N(보통 2~4) probe POST. menuId 캐시 24h →
+  학교당 24h 에 1회만 발생
+- quickmenu `moveQuickMenuURL` 패턴도 후보에 포함 (isu 같은 학교)
+
+**`parseCalendarMlsvIds` — td-단위 파싱**
+- anchor 텍스트는 학교마다 다르지만 **`<td>` 안에 day 평문 + fnDetail
+  onclick 있는 구조는 공통**. tbody → td → 각 td 안에서 day 숫자 + mlsvId
+  함께 추출
+- mm 인자 추가 — caller (`fetchSenEsWeekPhotos`) 가 받은 month 그대로 전달
+
+### 발견 — 한 학교가 인증 의존 (잠원초)
+
+처방 후 잠원 4/28 mlsvId=3176915, detail AJAX 응답에 사용자가 알려준
+`atchFileId=3940298` 정확 매치 ✅. 다만 `211455` 페이지 자체는 **시점 따라
+4/22 까지만 보이는 케이스 존재** — 학교 사이트가 세션 유무로 콘텐츠 다르게
+serve 하는 듯. 처방의 candidate probe 가 다른 menuId 시도 후 작동.
+
+### 도구 — `audit-seoul-schools.mjs` 신규
+
+`scripts/audit-seoul-schools.mjs` — 한 자치구 학교들의 menuId 후보·라벨·
+fnDetail count 한 번에 측정. Stage 14-2~ 에서 다른 자치구 추가할 때 회귀
+검증용.
+
+```
+node scripts/audit-seoul-schools.mjs              # schools.ts 의 seoul_*
+node scripts/audit-seoul-schools.mjs --district 동작구  # NEIS 조회
+```
+
+### 효과
+
+| 시점 | 4/28 사진 가능 (24교 중) |
+|---|---|
+| Stage 14-1 종료 시 | 2교 (seocho, maeheon) |
+| Stage 14-1-1 종료 후 | **19교** (+17교 회복) |
+
+남은 5교:
+- `seoul_gyeseong` — 사립 (의도된 보류)
+- `seoul_banpo` — 4월 캘린더 자체 0건 (별도 분석)
+- `seoul_sindong`, `seoul_eonnam`, `seoul_woosol` — detail 응답에 사진 X
+  (학교 영양교사 사진 미업로드 케이스, scraper 결함 X)
+
+### 한계
+
+- **세션·인증 의존 학교**: 잠원초 처럼 시점 따라 다른 콘텐츠 serve 하는
+  학교는 unauthenticated scraper 한계. processCalendar 가 빈 결과 받으면
+  다른 candidate 로 fallback 하지만, 모든 candidate 가 0 일 때 학교 X
+- **anchor 텍스트 한글 라벨**: td 단위 파싱으로 흡수했지만, 학교가 아예
+  `<td>` 구조 바꾸면 다시 회귀 가능. audit 스크립트 정기 실행으로 발견
+
+### 변경 파일
+
+| 파일 | 변경 |
+|---|---|
+| `src/lib/seoulSchoolScraper.ts` | `discoverMenuId` candidate probe, `extractMenuCandidates` 신규, `parseCalendarMlsvIds` td-단위 |
+| `scripts/audit-seoul-schools.mjs` | 신규 — 24교 진단 도구 |
+| `docs/work-log.md` | Stage 14-1-1 항목 |
+
+`schools.ts` 변경 0 (host·id 그대로). photoMirror·cron·photo API 변경 0.
+
+### 후속
+
+- 남은 banpo·sindong·eonnam·woosol 별도 진단 (선택, 영양교사 행동 의존)
+- Stage 14-2 — 동작구 21교 추가 (다음 자치구). 본 처방으로 라벨 다양성
+  흡수 가능
+
 
