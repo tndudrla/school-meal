@@ -71,6 +71,9 @@
 ### 지역 확장 (Stage 14 시리즈, 2026-04-27 ~ )
 - [Stage 14 — 서울 서초구 24교 (메뉴 only)](#stage-14--서울-서초구-24교-메뉴-only-2026-04-27) — 첫 다른 시도(B10) 확장, NEIS 메뉴만 (사진 scraper 분리)
 
+### 도구·운영 (2026-05-01 ~ )
+- [Slack 양방향 운영 셋업](#slack-양방향-운영-셋업-2026-05-01) — `Powerdaily` 워크스페이스 + `#claude-code` 채널, 폰 ↔ PC 작업 전환. 상세 가이드는 [`docs/slack-workflow.md`](./slack-workflow.md)
+
 ---
 
 ## 2026-04-25 — [Stage 1] OG 사진 임베드 제거 (카톡 타임아웃 영구 해결)
@@ -1983,3 +1986,103 @@ Stage 14-1 로 분리하기로 결정 (사용자 선택).
 - `photoMirror.ts` 분기 또는 함수 주입 (`scrape.kind: 'goeay' | 'sen-es'`)
 - 24교 `scrape` 필드 일괄 갱신
 - 검증 후 main 머지 (Stage 14 + 14-1 묶음)
+
+---
+
+## Slack 양방향 운영 셋업 (2026-05-01)
+
+### 발단
+
+PC ↔ 폰 작업 전환 욕구. 기존 흐름은 PC Cursor / Claude Code CLI 가 전부라
+이동 중에는 작업 일시 정지. 폰에서도 가벼운 작업(학교 추가, 문서 수정,
+PR 코멘트) 은 처리하고 싶다는 요구.
+
+### 출발 상태
+
+- `Powerdaily` Slack 워크스페이스 보유
+- `#claude-code` 채널에 `Schoo-meal` 봇이 단방향 알림 푸시 중
+  (Claude Code 의 `Stop` / `Notification` hook → incoming webhook)
+- 즉, **알림은 받지만 명령은 못 보내는** 절름발이 상태
+
+### 결정 — Anthropic 공식 Claude Slack 앱 도입
+
+세 가지 옵션 검토:
+
+| 옵션 | 장점 | 단점 | 채택 |
+|---|---|---|---|
+| Anthropic 공식 Claude 앱 | 셋업 5분, 양방향, GitHub 자동 연동 | DM 불가, 채널 멘션만 | ✅ |
+| Claude Code Action (GitHub Actions) | repo 안에서 동작, 비동기 | Slack 매개 간접적 | 보류 |
+| 자체 webhook 양방향 (Bolt + 로컬 PC) | 강력 | 셋업 복잡, PC 항상 켜야 | 기각 |
+
+비영리 1인 운영에 셋업 부담 가장 작은 공식 앱 채택.
+
+### 셋업 절차
+
+1. 워크스페이스 앱 검색 → "Claude" (Anthropic 공식) → Add to Slack
+2. 환영 화면의 `Connect Account` → claude.ai 로그인 → Authorize
+   - 연결 계정: `sooyoungkim@kakao.com`
+3. `/web-setup` 슬래시 커맨드 — GitHub 자동 연결 + Claude Code Web 활성
+   - 연결: GitHub `tndudrla` / `https://claude.ai/code`
+4. `#claude-code` 채널 첫 멘션 검증:
+   ```
+   @Claude school-meal repo 의 dev 브랜치 docs/work-log.md 마지막 단락 한 줄 요약
+   ```
+   → Claude 가 dev fetch + work-log 읽고 정확한 Stage 14-1 예고 단락 요약 반환
+
+### 결정적 제약
+
+Anthropic 공식 명시:
+> **"You currently can't trigger Claude Code tasks by messaging the Claude app directly — you can only tag it in another conversation."**
+
+- DM 으로 Claude Code 트리거 안 됨 → **채널 멘션만 작업 명령**
+- 1인 워크스페이스라도 채널이 반드시 필요 (`#claude-code` 가 그 역할)
+
+### 워크플로우
+
+```
+[폰 Slack #claude-code] @Claude 명령
+        ↓
+[Anthropic Claude 앱] → Claude Code Web 작업 트리거
+        ↓
+[GitHub tndudrla/school-meal] 새 브랜치 + 변경 + PR
+        ↓
+[#claude-code] PR 링크 + View session 응답
+        ↓
+[폰] PR 클릭 → Vercel preview 자동 배포 → 시각 검증 → Merge
+```
+
+기존 `Schoo-meal` 단방향 알림 봇과 새 `Claude` 양방향 봇이 같은 채널에
+공존. 봇 이름으로 메시지 종류 구분 가능.
+
+### 효과
+
+- 폰만으로 가벼운 작업 가능 — 학교 추가, 문서 수정, PR 코멘트
+- 외출·이동 중 작업 일시 정지 시간 줄어듦
+- PC 작업의 모든 변경이 GitHub PR 거치게 되어 자동 검증·롤백 단위 명확
+
+### 한계 / 우회
+
+| 한계 | 우회 |
+|---|---|
+| 로컬 `npm run dev` 못 띄움 | Vercel preview 로 대체 |
+| Slack DM 으로 트리거 X | 채널 `@Claude` 멘션 사용 |
+| 응답 2~5초 지연 | 긴급 hotfix 는 PC 가 빠름 |
+| Claude 가 의도와 다르게 작업 | PR 흐름으로 머지 전 발견 |
+| Slack 90일 메시지 보존 | 중요 결정은 work-log.md 누적 |
+
+### 보안
+
+- NEIS 키, Supabase service role key 등 비밀값 Slack 메시지에 절대 안 붙이기
+  (1인 워크스페이스라도 admin 계정 탈취 시 노출 위험)
+- 모든 비밀값은 Vercel env 또는 로컬 환경변수만
+- Claude 앱 GitHub 권한은 repo 단위 최소화 (`school-meal` 만)
+
+### 후속
+
+- [ ] Routing Mode → `Code + Chat` 변경 (현재 `Code only`)
+- [ ] 폰 Slack 앱 설치·로그인
+- [ ] Stage 14-1 을 Slack 명령으로 시도 — 양방향 첫 실전
+- [ ] 채널 분리 검토 (`#claude-cmd` 양방향 vs `#claude-code` 단방향 알림)
+- [ ] `Schoo-meal` webhook 이름 정정 (`school-meal` 오타)
+
+상세 운영 가이드: [`docs/slack-workflow.md`](./slack-workflow.md)
