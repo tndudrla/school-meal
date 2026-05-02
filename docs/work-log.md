@@ -2758,4 +2758,10 @@ id 충돌 회피 — 경일초·동명초는 동음 학교 있어 `_sd` suffix.
 Phase D 마지막 자치구. 20교 sen.es.kr + 1교 (경복초) host kbes.kr → scrape 생략.
 성동초·세종초 사립이지만 host sen.es.kr 라 등록.
 
+---
+
+## Stage 14-22 — 서울 동대문구 21교 (2026-05-03)
+
+Phase E 첫 자치구. 모두 sen.es.kr (경희·은석 사립 포함). 삼육초 host seoul36.sen.es.kr.
+
 
