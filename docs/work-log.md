@@ -2650,4 +2650,13 @@ scrape 생략 (NEIS 메뉴만 노출, 사진 미지원). id 충돌 없음.
 Phase B 세 번째 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음.
 host 약칭 다수 (smd→seoul_mokdong, sj→seoul_seojeong, se→seoul_sineun, swc→seoul_wolchon).
 
+---
+
+## Stage 14-11 — 서울 강서구 35교 (2026-05-02)
+
+Phase B 네 번째 자치구. 34교 sen.es.kr + 유석초 (서울 prefix 없음, 사립 추정,
+id `yooseok`). 유석초 host 도 sen.es.kr 라 sen-es scraper 그대로 동작.
+id 충돌 없음. host 약칭 다수 (nbs→seoul_naebalsan, dma→seoul_deungma,
+bsbs→seoul_baekseok, sg→seoul_singok, jk→seoul_jeonggok, top→seoul_topsan).
+
 
