@@ -2722,4 +2722,12 @@ ev→seoul_eunbit, yc1985→seoul_yeoncheon, susin→seoul_seosin).
 
 만점 자치구 2개 등장 (강서 35/35, 노원 42/42).
 
+---
+
+## Stage 14-17 — 서울 용산구 15교 (2026-05-03)
+
+Phase D 첫 자치구. 모두 sen.es.kr (신광초 사립 포함). id 충돌 없음.
+host 약칭 (seoul-nj→seoul_namjeong, sys→seoul_sinyongsan,
+s-cheongpa→seoul_cheongpa, skes→singwang).
+
 
