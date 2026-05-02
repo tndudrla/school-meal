@@ -1,4 +1,4 @@
-﻿# 학교 등록·사진 현황
+# 학교 등록·사진 현황
 
 > 자동 생성: `scripts/generate-school-status.mjs`
 > 측정 기준: 2026년 4월 평일 (전체) 중 하루라도 사진 있으면 ✅.
@@ -204,12 +204,12 @@
 | ✅ | `seoul_daemo` | 서울대모초등학교 | (sen-es) |
 | ✅ | `seoul_daewang` | 서울대왕초등학교 | (sen-es) |
 | ✅ | `seoul_daejin` | 서울대진초등학교 | (sen-es) |
-| ⬜ | `seoul_daecheong` | 서울대청초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ⬜ | `seoul_daecheong` | 서울대청초등학교 | 미업로드 (사용자 확인 2026-05-02) |
 | ✅ | `seoul_daechi` | 서울대치초등학교 | (sen-es) |
 | ✅ | `seoul_daehyun` | 서울대현초등학교 | (sen-es) |
 | ✅ | `seoul_dogok` | 서울도곡초등학교 | (sen-es) |
 | ✅ | `seoul_doseong` | 서울도성초등학교 | (sen-es) |
-| ⬜ | `seoul_bongeun` | 서울봉은초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ⬜ | `seoul_bongeun` | 서울봉은초등학교 | 미업로드 (사용자 확인 2026-05-02) |
 | ✅ | `seoul_samneung` | 서울삼릉초등학교 | (sen-es) |
 | ✅ | `seoul_semyung` | 서울세명초등학교 | (sen-es) |
 | ✅ | `seoul_suseo` | 서울수서초등학교 | (sen-es) |
@@ -221,7 +221,7 @@
 | ✅ | `seoul_yeoksam` | 서울역삼초등학교 | (sen-es) |
 | ✅ | `seoul_younghee` | 서울영희초등학교 | (sen-es) |
 | ✅ | `seoul_wangbuk` | 서울왕북초등학교 | (sen-es) |
-| ⬜ | `seoul_yulhyeon` | 서울율현초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ⬜ | `seoul_yulhyeon` | 서울율현초등학교 | 외부 뷰어 사용 (사용자 확인 2026-05-02 — viewhosting.ssem.or.kr blob URL, 현행 sen-es scraper 미지원, 별도 조사 TODO) |
 | ✅ | `seoul_ilwon` | 서울일원초등학교 | (sen-es) |
 | ✅ | `seoul_jagok` | 서울자곡초등학교 | (sen-es) |
 | ✅ | `seoul_cheongdam` | 서울청담초등학교 | (sen-es) |
