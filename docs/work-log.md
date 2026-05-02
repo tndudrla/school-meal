@@ -24,6 +24,8 @@
 ## 📑 Stage 인덱스
 
 미실행 후보(SW, 푸시, 다른 시도 학교 등)는 [`docs/backlog.md`](./backlog.md).
+등록 학교의 사진 추출 가능 현황은 [`docs/school-status.md`](./school-status.md)
+(자동 생성, `node scripts/generate-school-status.mjs` 로 갱신).
 
 ### 기반 (Stage 1~3)
 - [Stage 1 — OG 사진 임베드 제거](#2026-04-25--stage-1-og-사진-임베드-제거-카톡-타임아웃-영구-해결) — 카톡 타임아웃 사고 처방
