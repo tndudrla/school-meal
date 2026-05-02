@@ -71,3 +71,14 @@ export function parseYmd(ymd: string): Date {
     parseInt(ymd.substring(6, 8))
   );
 }
+
+// 첫 진입 시 노출할 날짜.
+// 평일 → 오늘, 주말 → 다음 주 월요일 (학부모 진입 시 가장 가까운 식단 일).
+export function getDefaultDate(baseDate: Date = new Date()): Date {
+  const day = baseDate.getDay();
+  if (day === 0 || day === 6) {
+    return getThisWeekDates(baseDate)[0]; // 다음 주 월요일
+  }
+  // 평일은 시간대 영향 제거된 그날의 자정
+  return new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+}

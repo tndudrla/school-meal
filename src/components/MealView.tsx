@@ -10,6 +10,7 @@ import SharedLinkBanner from '@/components/SharedLinkBanner';
 import FeedbackBoard from '@/components/FeedbackBoard';
 import {
   getWeekDatesByOffset,
+  getDefaultDate,
   formatDate,
   formatWeekRange,
   isWeekBeforeMin,
@@ -79,8 +80,10 @@ export default function MealView({ initialYmd, schoolId }: Props) {
   );
   const weekDates = useMemo(() => getWeekDatesByOffset(weekOffset), [weekOffset]);
 
+  // 첫 진입 시 평일이면 오늘, 주말이면 다음 주 월요일을 기본 노출.
+  // 공유 링크(initialYmd) 가 있으면 그 날짜 우선.
   const [selectedYmd, setSelectedYmd] = useState<string>(
-    () => initialYmd ?? formatDate(getWeekDatesByOffset(0)[0])
+    () => initialYmd ?? formatDate(getDefaultDate())
   );
   const [meal, setMeal] = useState<Meal | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
