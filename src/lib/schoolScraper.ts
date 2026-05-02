@@ -15,6 +15,7 @@
  */
 
 import { fetchSenEsWeekPhotos, type SenEsScrapeTarget } from './seoulSchoolScraper';
+import { fetchSajipBbsWeekPhotos, type SajipBbsScrapeTarget } from './sajipSchoolScraper';
 
 export interface GoeayScrapeTarget {
   kind: 'goeay';
@@ -27,7 +28,7 @@ export interface GoeayScrapeTarget {
  * 사진 scraper 가 받는 union — schools.ts 의 scrape 필드 타입.
  * 새 도메인 추가 시 여기에 union 멤버 추가 + 라우터 switch 한 줄.
  */
-export type SchoolScrape = GoeayScrapeTarget | SenEsScrapeTarget;
+export type SchoolScrape = GoeayScrapeTarget | SenEsScrapeTarget | SajipBbsScrapeTarget;
 
 const WEEK_CACHE = new Map<string, { at: number; data: Record<string, string> }>();
 const WEEK_TTL_MS = 60 * 60 * 1000; // 1시간
@@ -172,6 +173,8 @@ export async function fetchWeekPhotos(
       return fetchGoeayWeekPhotos(target, ymd);
     case 'sen-es':
       return fetchSenEsWeekPhotos(target, ymd);
+    case 'sajip-bbs':
+      return fetchSajipBbsWeekPhotos(target, ymd);
   }
 }
 

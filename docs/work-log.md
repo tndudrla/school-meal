@@ -72,6 +72,7 @@
 - [Stage 14 — 서울 서초구 24교 (메뉴 only)](#stage-14--서울-서초구-24교-메뉴-only-2026-04-27) — 첫 다른 시도(B10) 확장, NEIS 메뉴만 (사진 scraper 분리)
 - [Stage 14-1 — 서울 sen.es.kr 사진 scraper](#stage-14-1--서울-senesk-사진-scraper-2026-05-02) — 23교 사진 미러 활성화, discriminated union + kind 분기, 라이브 검증 시 GET vs POST 차이 발견·처방
 - [Stage 14-1-1 — 서초구 사진 누락 회귀 처방](#stage-14-1-1--서초구-사진-누락-회귀-처방-2026-05-02) — 사용자 잠원초 4/28 보고에서 출발. menuId 후보 probe + td-단위 day 추출로 사진 학교 2교 → 19교
+- [Stage 14-1-2 — 계성초 사립 PHP 게시판 scraper](#stage-14-1-2--계성초-사립-php-게시판-scraper-2026-05-02) — sajipSchoolScraper 신규, `kind: 'sajip-bbs'` union 추가. 사진 가능 19교 → 20교
 
 ### 도구·운영 (2026-05-01 ~ )
 - [Slack 양방향 운영 셋업](#slack-양방향-운영-셋업-2026-05-01) — `Powerdaily` 워크스페이스 + `#claude-code` 채널, 폰 ↔ PC 작업 전환. 상세 가이드는 [`docs/slack-workflow.md`](./slack-workflow.md)
@@ -2277,5 +2278,107 @@ node scripts/audit-seoul-schools.mjs --district 동작구  # NEIS 조회
 - 남은 banpo·sindong·eonnam·woosol 별도 진단 (선택, 영양교사 행동 의존)
 - Stage 14-2 — 동작구 21교 추가 (다음 자치구). 본 처방으로 라벨 다양성
   흡수 가능
+
+---
+
+## Stage 14-1-2 — 계성초 사립 PHP 게시판 scraper (2026-05-02)
+
+### 발단
+
+Stage 14-1-1 종료 후 사용자가 9교 직접 확인. 8교는 미업로드/외부차단으로
+확정됐으나 **계성초 4/30 사진 URL 보고**:
+```
+https://www.gyeseong1882.es.kr/data/bbs/special_food_plan/1777524600.jpg
+```
+
+`*.es.kr` (sen.es.kr 아닌 사립 CMS) 도메인이라 Stage 14-1 의 sen-es scraper
+호환 X. 별도 scraper 필요. 사립 1교 만 위해 모듈 추가하지만 다른 사립
+(다른 시도 사립학교) 추가 시 그대로 재사용 가능한 일반화 형태.
+
+### 발견 — 게시판 캘린더 구조
+
+URL 패턴:
+```
+/bbs/list.html?category={bbsCategory}&yStr=YYYY&mStr=M&sw=N
+```
+- `bbsCategory`: 학교마다 다름 (계성: `special_food_plan`)
+- `sw=6`: 그 달 마지막 주차 이상 → **한 페이지에 그 달 모든 평일 사진**
+  (`sw=1~5` 는 주차별 일부, `sw=6` 은 같은 페이지 다 받음)
+
+캘린더 td 구조:
+```html
+<td>{day} <br /> <span onClick="location.href='./view.html?seq=...'">
+  <img src="/data/bbs/{bbsCategory}/{timestamp}.jpg" />
+</span></td>
+```
+
+→ td → day(평문) + img src 매핑. 이미 sen-es scraper 의 td-단위 파싱 패턴과
+유사 (Stage 14-1-1 의 처방).
+
+### 처방 — `sajipSchoolScraper.ts` 신규
+
+```ts
+interface SajipBbsScrapeTarget {
+  kind: 'sajip-bbs';
+  host: string;        // www.gyeseong1882.es.kr
+  bbsCategory: string; // special_food_plan
+}
+```
+
+- `parseSajipMonth(html, bbsCategory)` — td → day → photo 매핑
+- `fetchSajipBbsWeekPhotos(target, ymd)` — sw=6 한 번 fetch 후 월 단위 캐시
+  (1시간 TTL), 주(월~금) 만 필터해 반환
+- 월 단위 캐시는 같은 학교의 같은 달 여러 ymd 호출 시 재 fetch 0 — sen-es
+  scraper 보다 효율적 (학교 페이지 부담 ↓)
+
+`schoolScraper.ts` router switch 에 case 한 줄 추가:
+```ts
+case 'sajip-bbs': return fetchSajipBbsWeekPhotos(target, ymd);
+```
+
+`schools.ts` 의 `seoul_gyeseong` 에 scrape config 부여:
+```ts
+scrape: {
+  kind: 'sajip-bbs',
+  host: 'www.gyeseong1882.es.kr',
+  bbsCategory: 'special_food_plan',
+}
+```
+
+### 검증
+
+- 계성초 4월 마지막 주 (4/27~4/30) 사진 4/4 정상 추출
+- **4/30 = `1777524600.jpg`** — 사용자 알려준 URL 정확 매치 ✅
+- chonggye (경기), seocho/jamwon (서울) 회귀 0
+
+### 효과
+
+| 시점 | 사진 가능 학교 (24교 중) |
+|---|---|
+| Stage 14-1-1 종료 후 | 19교 (계성초 보류) |
+| Stage 14-1-2 종료 후 | **20교** (계성초 추가) |
+
+남은 4교 (banpo·sindong·eonnam·woosol) 는 영양교사 미업로드 (사용자 직접
+확인 완료). scraper 가 처방 불가.
+
+### 변경 파일
+
+| 파일 | 변경 |
+|---|---|
+| `src/lib/sajipSchoolScraper.ts` | 신규 — `parseSajipMonth`, `fetchSajipBbsWeekPhotos` |
+| `src/lib/schoolScraper.ts` | union 에 `SajipBbsScrapeTarget` 추가, router switch case 한 줄 |
+| `src/lib/schools.ts` | `seoul_gyeseong` 에 scrape 부여 |
+| `docs/work-log.md` | Stage 14-1-2 항목 |
+
+photoMirror·cron·photo API **변경 0** — union 라우터 시그니처 그대로 호환.
+
+### 후속
+
+- 다른 시도 사립학교 추가 시 `sajipSchoolScraper` 재사용
+- `bbsCategory` 가 학교마다 다를 수 있음 (계성: `special_food_plan`,
+  다른 사립은 `food_plan` / `food_school` 등). schools.ts 의 scrape 에서
+  명시
+- 게시판 list 가 아닌 다른 메커니즘 (PDF 게시판, 한 글 안 다중 사진 등)
+  사립학교는 별도 처방 필요
 
 

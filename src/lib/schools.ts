@@ -657,7 +657,13 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
     level: 'elementary',
     region: '서울 서초',
     neis: { atptCode: 'B10', schoolCode: '7091368' },
-    // sajip 학교 — gyeseong1882.es.kr 패턴 별도 분석 필요. Stage 14-2+ 에서.
+    // 사립 — gyeseong1882.es.kr 의 PHP 게시판형 식단표 (Stage 14-1-2, 2026-05-02).
+    // 다른 사립 추가 시 sajipSchoolScraper.ts 그대로 재사용 가능.
+    scrape: {
+      kind: 'sajip-bbs',
+      host: 'www.gyeseong1882.es.kr',
+      bbsCategory: 'special_food_plan',
+    },
   },
   seoul_snueps: {
     id: 'seoul_snueps',
