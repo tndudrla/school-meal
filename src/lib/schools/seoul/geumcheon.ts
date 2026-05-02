@@ -1,0 +1,156 @@
+/**
+ * 서울 금천구 18교 — Stage 14-7 (2026-05-02), Phase A 마지막 자치구.
+ *
+ * 모두 sen.es.kr 패턴. 사립 0교. id 충돌 없음.
+ * 첫 학교 (donggwang.sen.es.kr) 만 학교명에 "서울" prefix 없음 (동광초등학교) —
+ * id 도 prefix 없이 `donggwang`.
+ */
+
+import type { SchoolConfig } from '../index';
+
+export const GEUMCHEON_SCHOOLS: Record<string, SchoolConfig> = {
+  donggwang: {
+    id: 'donggwang',
+    name: '동광초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041099' },
+    scrape: { kind: 'sen-es', host: 'donggwang.sen.es.kr' },
+  },
+  seoul_gasan: {
+    id: 'seoul_gasan',
+    name: '서울가산초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041100' },
+    scrape: { kind: 'sen-es', host: 'gasan.sen.es.kr' },
+  },
+  seoul_geumnarae: {
+    id: 'seoul_geumnarae',
+    name: '서울금나래초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041260' },
+    scrape: { kind: 'sen-es', host: 'geumnarae.sen.es.kr' },
+  },
+  seoul_geumdong: {
+    id: 'seoul_geumdong',
+    name: '서울금동초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041110' },
+    scrape: { kind: 'sen-es', host: 'geumdong.sen.es.kr' },
+  },
+  seoul_geumsan: {
+    id: 'seoul_geumsan',
+    name: '서울금산초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041111' },
+    scrape: { kind: 'sen-es', host: 'gumsan.sen.es.kr' },
+  },
+  seoul_geumcheon: {
+    id: 'seoul_geumcheon',
+    name: '서울금천초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041112' },
+    scrape: { kind: 'sen-es', host: 'kumcheon.sen.es.kr' },
+  },
+  seoul_doksan: {
+    id: 'seoul_doksan',
+    name: '서울독산초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041123' },
+    scrape: { kind: 'sen-es', host: 'doksan.sen.es.kr' },
+  },
+  seoul_doosan: {
+    id: 'seoul_doosan',
+    name: '서울두산초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041125' },
+    scrape: { kind: 'sen-es', host: 'doosan.sen.es.kr' },
+  },
+  seoul_mungyo: {
+    id: 'seoul_mungyo',
+    name: '서울문교초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041127' },
+    scrape: { kind: 'sen-es', host: 'mungyo.sen.es.kr' },
+  },
+  seoul_munbaek: {
+    id: 'seoul_munbaek',
+    name: '서울문백초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041129' },
+    scrape: { kind: 'sen-es', host: 'munbaek.sen.es.kr' },
+  },
+  seoul_munsung: {
+    id: 'seoul_munsung',
+    name: '서울문성초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041130' },
+    scrape: { kind: 'sen-es', host: 'munsung.sen.es.kr' },
+  },
+  seoul_backsan: {
+    id: 'seoul_backsan',
+    name: '서울백산초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041132' },
+    scrape: { kind: 'sen-es', host: 'backsan.sen.es.kr' },
+  },
+  seoul_siheung: {
+    id: 'seoul_siheung',
+    name: '서울시흥초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041135' },
+    scrape: { kind: 'sen-es', host: 'siheung.sen.es.kr' },
+  },
+  seoul_sinheung: {
+    id: 'seoul_sinheung',
+    name: '서울신흥초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041141' },
+    scrape: { kind: 'sen-es', host: 'sinheung.sen.es.kr' },
+  },
+  seoul_ancheon: {
+    id: 'seoul_ancheon',
+    name: '서울안천초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041142' },
+    scrape: { kind: 'sen-es', host: 'ancheon.sen.es.kr' },
+  },
+  seoul_yeongnam: {
+    id: 'seoul_yeongnam',
+    name: '서울영남초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041144' },
+    scrape: { kind: 'sen-es', host: 'seoulyeongnam.sen.es.kr' },
+  },
+  seoul_jungshim: {
+    id: 'seoul_jungshim',
+    name: '서울정심초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041160' },
+    scrape: { kind: 'sen-es', host: 'jungshim.sen.es.kr' },
+  },
+  seoul_topdong: {
+    id: 'seoul_topdong',
+    name: '서울탑동초등학교',
+    level: 'elementary',
+    region: '서울 금천',
+    neis: { atptCode: 'B10', schoolCode: '7041161' },
+    scrape: { kind: 'sen-es', host: 'topdong.sen.es.kr' },
+  },
+};

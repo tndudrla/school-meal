@@ -2617,4 +2617,16 @@ Phase A 다섯 번째 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음
 약칭 host 다수 (gme→seoul_gangmyeong, gbe→seoul_gangbit,
 scd→seoul_cheondong).
 
+---
+
+## Stage 14-7 — 서울 금천구 18교 (2026-05-02)
+
+Phase A 마지막 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음.
+첫 학교가 서울 prefix 없는 "동광초등학교" — id `donggwang`.
+
+## Phase A 완료 (2026-05-02)
+
+서울 6개 자치구 + 경기 4도시 누적 264교 = 25개 자치구 중 6 / 25.
+다음 = Phase B (영등포·구로·양천·강서·노원·도봉) 100여교.
+
 
