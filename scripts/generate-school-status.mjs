@@ -37,6 +37,10 @@ const VERIFIED_REASONS = {
   poil: '미업로드 (사용자 확인 2026-05-02)',
   kwanyang: '외부 접근 차단 (사용자 확인 2026-05-02 — "잘못된 접속 정보" alert)',
   anyang: '미업로드 (사용자 확인 2026-05-02)',
+  // 서울 동작구 (2026-05-02 4월 한 달 전체 0건 자동 검증)
+  seoul_bondong: '4월 전체 미업로드 (자동 검증 2026-05-02 — 평일 22일 모두 0건)',
+  seoul_heukseok: '4월 전체 미업로드 (자동 검증 2026-05-02 — 평일 22일 모두 0건)',
+  seoul_cau: '4월 전체 미업로드 (자동 검증 2026-05-02 — 평일 22일 모두 0건)',
 };
 
 // ----- 학교 목록 추출 -------------------------------------------------------
@@ -120,25 +124,28 @@ async function probePhoto(schoolId, ymd) {
 }
 
 /**
- * 한 주(월~금) 5일 측정. 한 ymd 라도 OK면 학교 OK.
- * monday 는 ymd 의 그 주 월요일.
+ * 한 달 모든 평일 측정 (역순 — 최근 주부터 첫 주까지). 한 ymd 라도 OK면 학교 OK.
+ * 단일 학교의 사진 가능 여부를 판정할 때 1주만 보면 잠시 미업로드 학교를
+ * 영구 미업로드로 오분류 — 한 달 평일 다 시도하면 한 번이라도 올린 학교는 검출.
+ *
+ * ymd 의 그 달 1일~말일 평일을 역순 (최근 → 오래된 순) 으로 try.
  */
-async function probeWeek(schoolId, ymd) {
+async function probeMonth(schoolId, ymd) {
   const y = parseInt(ymd.substring(0, 4), 10);
   const m = parseInt(ymd.substring(4, 6), 10) - 1;
-  const d = parseInt(ymd.substring(6, 8), 10);
-  const date = new Date(y, m, d);
-  const day = date.getDay();
-  const offset = day === 0 ? 1 : 1 - day;
-  date.setDate(date.getDate() + offset);
+  // 그 달 1일부터 말일까지 평일만
   const tries = [];
-  for (let i = 0; i < 5; i++) {
-    const dt = new Date(date);
-    dt.setDate(date.getDate() + i);
+  const monthStart = new Date(y, m, 1);
+  const monthEnd = new Date(y, m + 1, 0); // m+1월 0일 = m월 말일
+  for (let d = monthStart; d <= monthEnd; d.setDate(d.getDate() + 1)) {
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue; // 주말 제외
     tries.push(
-      `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`
+      `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
     );
   }
+  // 역순 — 최근 주부터 (대부분 학교는 최근 사진 있어 빨리 종료)
+  tries.reverse();
   for (const t of tries) {
     const r = await probePhoto(schoolId, t);
     if (r.ok) return { ok: true, ymd: t, photoUrl: r.photoUrl, source: r.source };
@@ -157,7 +164,7 @@ for (const s of schools) {
     results.push({ ...s, status: 'no-scrape', reason: 'NEIS 메뉴만 (사진 미지원 의도)' });
     continue;
   }
-  const r = await probeWeek(s.id, TARGET_YMD);
+  const r = await probeMonth(s.id, TARGET_YMD);
   if (r.ok) {
     results.push({ ...s, status: 'ok', photoUrl: r.photoUrl, source: r.source, ymd: r.ymd });
   } else {
@@ -215,7 +222,7 @@ const lines = [];
 lines.push('# 학교 등록·사진 현황');
 lines.push('');
 lines.push(`> 자동 생성: \`scripts/generate-school-status.mjs\``);
-lines.push(`> 측정 기준: 4/28 이 속한 한 주 (월~금) 중 하루라도 사진 있으면 ✅.`);
+lines.push(`> 측정 기준: ${TARGET_YMD.substring(0,4)}년 ${parseInt(TARGET_YMD.substring(4,6),10)}월 평일 (전체) 중 하루라도 사진 있으면 ✅.`);
 lines.push(`> 마지막 갱신: ${new Date().toISOString().slice(0, 10)} (기준 ymd ${TARGET_YMD})`);
 lines.push('');
 
