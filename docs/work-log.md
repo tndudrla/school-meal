@@ -2687,4 +2687,13 @@ Phase C 첫 자치구. 모두 sen.es.kr. 홍익대학교사범대학부속초등
 그대로 동작. id 충돌 회피 — 마포구 성산초는 `seoul_sangsan_mp` (host 기반 약칭
 ssc). host 약칭 (ssc→seoul_sangsan_mp, sseo→seoul_seongseo, sky→seoul_haneul).
 
+---
+
+## Stage 14-15 — 서울 서대문구 19교 (2026-05-02)
+
+Phase C 두 번째 자치구. 18교 sen.es.kr + 1교 (명지초) host www.myongji.net 사립으로
+scrape 생략 (NEIS 메뉴만 노출, 사진 미지원). 그 외 사립 다수 (경기·이화여대 부속·추계
+등 host sen.es.kr 라 그대로 등록). id 충돌 없음. host 약칭 (sds→seoul_daesin,
+scs→seoul_changseo, hyc→seoul_hongyeon).
+
 

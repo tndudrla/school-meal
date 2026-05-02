@@ -18,6 +18,7 @@
  *   seoul/nowon.ts       — 서울 노원구 42교 (Stage 14-12)
  *   seoul/dobong.ts      — 서울 도봉구 23교 (Stage 14-13)
  *   seoul/mapo.ts        — 서울 마포구 22교 (Stage 14-14)
+ *   seoul/seodaemun.ts   — 서울 서대문구 19교 (Stage 14-15, 1교 scrape 생략)
  *   seoul/<자치구>.ts    — Phase A~E 진행하며 추가
  *
  * Stage 3 에서 사진 미러를 켜면 'scrape' 가 있는 학교만 미러 대상이 된다.
@@ -41,6 +42,7 @@ import { GANGSEO_SCHOOLS } from './seoul/gangseo';
 import { NOWON_SCHOOLS } from './seoul/nowon';
 import { DOBONG_SCHOOLS } from './seoul/dobong';
 import { MAPO_SCHOOLS } from './seoul/mapo';
+import { SEODAEMUN_SCHOOLS } from './seoul/seodaemun';
 
 export type SchoolLevel = 'elementary' | 'middle' | 'high';
 
@@ -78,6 +80,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
   ...NOWON_SCHOOLS,
   ...DOBONG_SCHOOLS,
   ...MAPO_SCHOOLS,
+  ...SEODAEMUN_SCHOOLS,
 };
 
 export const DEFAULT_SCHOOL_ID = 'chonggye';

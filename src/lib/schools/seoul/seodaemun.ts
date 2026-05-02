@@ -1,0 +1,163 @@
+/**
+ * 서울 서대문구 19교 — Stage 14-15 (2026-05-02), Phase C 두 번째 자치구.
+ *
+ * 18교 sen.es.kr + 1교 (명지초) host www.myongji.net → scrape 생략.
+ * 사립 다수 (경기·이화·추계 등 host 가 sen.es.kr 라 그대로 등록).
+ */
+
+import type { SchoolConfig } from '../index';
+
+export const SEODAEMUN_SCHOOLS: Record<string, SchoolConfig> = {
+  kyonggi_es: {
+    id: 'kyonggi_es',
+    name: '경기초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031110' },
+    scrape: { kind: 'sen-es', host: 'kyonggi.sen.es.kr' },
+  },
+  myongji: {
+    id: 'myongji',
+    name: '명지초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031111' },
+    // scrape 생략 — host = www.myongji.net (사립). NEIS 메뉴만, 사진 미지원.
+  },
+  seoul_gajaeul: {
+    id: 'seoul_gajaeul',
+    name: '서울가재울초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031278' },
+    scrape: { kind: 'sen-es', host: 'gajaeul.sen.es.kr' },
+  },
+  seoul_goeun: {
+    id: 'seoul_goeun',
+    name: '서울고은초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031113' },
+    scrape: { kind: 'sen-es', host: 'goeun.sen.es.kr' },
+  },
+  seoul_geumhwa: {
+    id: 'seoul_geumhwa',
+    name: '서울금화초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031117' },
+    scrape: { kind: 'sen-es', host: 'geumhwa.sen.es.kr' },
+  },
+  seoul_daesin: {
+    id: 'seoul_daesin',
+    name: '서울대신초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031119' },
+    scrape: { kind: 'sen-es', host: 'sds.sen.es.kr' },
+  },
+  seoul_midong: {
+    id: 'seoul_midong',
+    name: '서울미동초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031125' },
+    scrape: { kind: 'sen-es', host: 'midong.sen.es.kr' },
+  },
+  seoul_bukgajwa: {
+    id: 'seoul_bukgajwa',
+    name: '서울북가좌초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031126' },
+    scrape: { kind: 'sen-es', host: 'bukgajwa.sen.es.kr' },
+  },
+  seoul_buksung: {
+    id: 'seoul_buksung',
+    name: '서울북성초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031127' },
+    scrape: { kind: 'sen-es', host: 'seoulbuksung.sen.es.kr' },
+  },
+  seoul_ansan: {
+    id: 'seoul_ansan',
+    name: '서울안산초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031146' },
+    scrape: { kind: 'sen-es', host: 'ansan.sen.es.kr' },
+  },
+  seoul_yeonga: {
+    id: 'seoul_yeonga',
+    name: '서울연가초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031148' },
+    scrape: { kind: 'sen-es', host: 'yeonga.sen.es.kr' },
+  },
+  seoul_yeonhui: {
+    id: 'seoul_yeonhui',
+    name: '서울연희초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031153' },
+    scrape: { kind: 'sen-es', host: 'yeonhui.sen.es.kr' },
+  },
+  seoul_inwang: {
+    id: 'seoul_inwang',
+    name: '서울인왕초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031160' },
+    scrape: { kind: 'sen-es', host: 'inwang.sen.es.kr' },
+  },
+  seoul_changseo: {
+    id: 'seoul_changseo',
+    name: '서울창서초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031164' },
+    scrape: { kind: 'sen-es', host: 'scs.sen.es.kr' },
+  },
+  seoul_hongyeon: {
+    id: 'seoul_hongyeon',
+    name: '서울홍연초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031167' },
+    scrape: { kind: 'sen-es', host: 'hyc.sen.es.kr' },
+  },
+  seoul_hongeun: {
+    id: 'seoul_hongeun',
+    name: '서울홍은초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031168' },
+    scrape: { kind: 'sen-es', host: 'hongeun.sen.es.kr' },
+  },
+  seoul_hongje: {
+    id: 'seoul_hongje',
+    name: '서울홍제초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031169' },
+    scrape: { kind: 'sen-es', host: 'hongje.sen.es.kr' },
+  },
+  ewha_es: {
+    id: 'ewha_es',
+    name: '이화여자대학교사범대학부속초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031174' },
+    scrape: { kind: 'sen-es', host: 'ewha.sen.es.kr' },
+  },
+  chugye: {
+    id: 'chugye',
+    name: '추계초등학교',
+    level: 'elementary',
+    region: '서울 서대문',
+    neis: { atptCode: 'B10', schoolCode: '7031175' },
+    scrape: { kind: 'sen-es', host: 'chugye.sen.es.kr' },
+  },
+};
