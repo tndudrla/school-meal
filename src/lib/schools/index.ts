@@ -28,7 +28,7 @@
  *   seoul/dongdaemun.ts  — 서울 동대문구 21교 (Stage 14-22)
  *   seoul/jungnang.ts    — 서울 중랑구 24교 (Stage 14-23, 1교 scrape 생략)
  *   seoul/seongbuk.ts    — 서울 성북구 29교 (Stage 14-24)
- *   seoul/<자치구>.ts    — Phase A~E 진행하며 추가
+ *   seoul/gangbuk.ts     — 서울 강북구 14교 (Stage 14-25, 1교 scrape 생략, 서울 25구 완료)
  *
  * Stage 3 에서 사진 미러를 켜면 'scrape' 가 있는 학교만 미러 대상이 된다.
  * NEIS 만 지원하는 학교(다른 시도 교육청 도메인 등)는 'scrape' 생략 가능 — 메뉴는 보이고
@@ -61,6 +61,7 @@ import { GWANGJIN_SCHOOLS } from './seoul/gwangjin';
 import { DONGDAEMUN_SCHOOLS } from './seoul/dongdaemun';
 import { JUNGNANG_SCHOOLS } from './seoul/jungnang';
 import { SEONGBUK_SCHOOLS } from './seoul/seongbuk';
+import { GANGBUK_SCHOOLS } from './seoul/gangbuk';
 
 export type SchoolLevel = 'elementary' | 'middle' | 'high';
 
@@ -108,6 +109,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
   ...DONGDAEMUN_SCHOOLS,
   ...JUNGNANG_SCHOOLS,
   ...SEONGBUK_SCHOOLS,
+  ...GANGBUK_SCHOOLS,
 };
 
 export const DEFAULT_SCHOOL_ID = 'chonggye';

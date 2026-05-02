@@ -6,10 +6,10 @@
 
 ## 요약
 
-- 등록: **515교**
-- 사진 가능 ✅: **496교** (96.3%)
-- 사진 실패 ⬜: 17교 (학교 미업로드 또는 외부 차단)
-- scrape 미지원 ➖: 2교 (NEIS 메뉴만)
+- 등록: **685교**
+- 사진 가능 ✅: **654교** (95.5%)
+- 사진 실패 ⬜: 24교 (학교 미업로드 또는 외부 차단)
+- scrape 미지원 ➖: 7교 (NEIS 메뉴만)
 
 ## 자치구별 현황
 
@@ -553,6 +553,204 @@
 | ✅ | `yale` | 예일초등학교 | (sen-es) |
 | ✅ | `choongam` | 충암초등학교 | (sen-es) |
 
+### 서울 용산 — 12/15 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ✅ | `seoul_keumyang` | 서울금양초등학교 | (sen-es) |
+| ✅ | `seoul_namjeong` | 서울남정초등학교 | (sen-es) |
+| ⬜ | `seoul_bogwang` | 서울보광초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ✅ | `seoul_samkwang` | 서울삼광초등학교 | (sen-es) |
+| ✅ | `seoul_seobinggo` | 서울서빙고초등학교 | (sen-es) |
+| ⬜ | `seoul_sinyongsan` | 서울신용산초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ✅ | `seoul_yongsan` | 서울용산초등학교 | (sen-es) |
+| ✅ | `seoul_yongam` | 서울용암초등학교 | (sen-es) |
+| ✅ | `seoul_wonhyo` | 서울원효초등학교 | (sen-es) |
+| ⬜ | `seoul_itaewon` | 서울이태원초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ✅ | `seoul_cheongpa` | 서울청파초등학교 | (sen-es) |
+| ✅ | `seoul_hangang` | 서울한강초등학교 | (sen-es) |
+| ✅ | `seoul_hannam` | 서울한남초등학교 | (sen-es) |
+| ✅ | `seoul_huam` | 서울후암초등학교 | (sen-es) |
+| ✅ | `singwang` | 신광초등학교 | (sen-es) |
+
+### 서울 종로 — 13/13 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ✅ | `sangmyung_es` | 상명대학교사범대학부속초등학교 | (sen-es) |
+| ✅ | `seoul_kyodong` | 서울교동초등학교 | (sen-es) |
+| ✅ | `snu_es` | 서울대학교사범대학부설초등학교 | (sen-es) |
+| ✅ | `seoul_dongnimmun` | 서울독립문초등학교 | (sen-es) |
+| ✅ | `seoul_maedong_jr` | 서울매동초등학교 | (sen-es) |
+| ✅ | `seoul_myungshin` | 서울명신초등학교 | (sen-es) |
+| ✅ | `seoul_segumjung` | 서울세검정초등학교 | (sen-es) |
+| ✅ | `seoul_jaedong` | 서울재동초등학교 | (sen-es) |
+| ✅ | `seoul_changshin` | 서울창신초등학교 | (sen-es) |
+| ✅ | `seoul_chungwoon` | 서울청운초등학교 | (sen-es) |
+| ✅ | `seoul_hyehwa` | 서울혜화초등학교 | (sen-es) |
+| ✅ | `seoul_hyoje` | 서울효제초등학교 | (sen-es) |
+| ✅ | `unhyun` | 운현초등학교 | (sen-es) |
+
+### 서울 성동 — 20/21 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ✅ | `seoul_kyungdong` | 서울경동초등학교 | (sen-es) |
+| ✅ | `seoul_kyeongsu` | 서울경수초등학교 | (sen-es) |
+| ✅ | `seoul_kyongil_sd` | 서울경일초등학교 | (sen-es) |
+| ✅ | `seoul_geumbuk` | 서울금북초등학교 | (sen-es) |
+| ✅ | `seoul_geumok` | 서울금옥초등학교 | (sen-es) |
+| ✅ | `seoul_geumho` | 서울금호초등학교 | (sen-es) |
+| ✅ | `seoul_dongmyung_sd` | 서울동명초등학교 | (sen-es) |
+| ✅ | `seoul_dongho` | 서울동호초등학교 | (sen-es) |
+| ✅ | `seoul_majang` | 서울마장초등학교 | (sen-es) |
+| ✅ | `seoul_muhag` | 서울무학초등학교 | (sen-es) |
+| ✅ | `seoul_sageun` | 서울사근초등학교 | (sen-es) |
+| ✅ | `seoul_sungsu` | 서울성수초등학교 | (sen-es) |
+| ✅ | `seoul_songwon` | 서울송원초등학교 | (sen-es) |
+| ✅ | `seoul_soongshin` | 서울숭신초등학교 | (sen-es) |
+| ✅ | `seoul_oksu` | 서울옥수초등학교 | (sen-es) |
+| ✅ | `seoul_okjeong` | 서울옥정초등학교 | (sen-es) |
+| ✅ | `seoul_yongdab` | 서울용답초등학교 | (sen-es) |
+| ✅ | `seoul_eungbong` | 서울응봉초등학교 | (sen-es) |
+| ✅ | `seoul_haengdang` | 서울행당초등학교 | (sen-es) |
+| ✅ | `seoul_haenghyun` | 서울행현초등학교 | (sen-es) |
+| ➖ | `hanyang_es` | 한양초등학교 | NEIS 메뉴만 (사진 미지원 의도) |
+
+### 서울 광진 — 20/21 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ➖ | `gyeongbok_es` | 경복초등학교 | NEIS 메뉴만 (사진 미지원 의도) |
+| ✅ | `seoul_gwangnam` | 서울광남초등학교 | (sen-es) |
+| ✅ | `seoul_kwangjang` | 서울광장초등학교 | (sen-es) |
+| ✅ | `seoul_gwangjin` | 서울광진초등학교 | (sen-es) |
+| ✅ | `seoul_gunam` | 서울구남초등학교 | (sen-es) |
+| ✅ | `seoul_guui` | 서울구의초등학교 | (sen-es) |
+| ✅ | `seoul_dongeui` | 서울동의초등학교 | (sen-es) |
+| ✅ | `seoul_dongja` | 서울동자초등학교 | (sen-es) |
+| ✅ | `seoul_seongja` | 서울성자초등학교 | (sen-es) |
+| ✅ | `seoul_sinyang` | 서울신양초등학교 | (sen-es) |
+| ✅ | `seoul_sinja` | 서울신자초등학교 | (sen-es) |
+| ✅ | `seoul_yangnam` | 서울양남초등학교 | (sen-es) |
+| ✅ | `seoul_yangjin` | 서울양진초등학교 | (sen-es) |
+| ✅ | `seoul_yonggok` | 서울용곡초등학교 | (sen-es) |
+| ✅ | `seoul_yongma` | 서울용마초등학교 | (sen-es) |
+| ✅ | `seoul_jayang` | 서울자양초등학교 | (sen-es) |
+| ✅ | `seoul_jangan` | 서울장안초등학교 | (sen-es) |
+| ✅ | `seoul_junggwang` | 서울중광초등학교 | (sen-es) |
+| ✅ | `seoul_jungma` | 서울중마초등학교 | (sen-es) |
+| ✅ | `seoul_seongdong` | 성동초등학교 | (sen-es) |
+| ✅ | `seoul_sejong` | 세종초등학교 | (sen-es) |
+
+### 서울 동대문 — 19/21 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ⬜ | `kyunghee_es` | 경희초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ✅ | `seoul_kunja` | 서울군자초등학교 | (sen-es) |
+| ✅ | `seoul_dapsimni` | 서울답십리초등학교 | (sen-es) |
+| ✅ | `seoul_dongdab` | 서울동답초등학교 | (sen-es) |
+| ✅ | `seoul_baebong` | 서울배봉초등학교 | (sen-es) |
+| ✅ | `seoul_seoul36` | 서울삼육초등학교 | (sen-es) |
+| ✅ | `seoul_shindap` | 서울신답초등학교 | (sen-es) |
+| ✅ | `seoul_anpyeong` | 서울안평초등학교 | (sen-es) |
+| ⬜ | `seoul_yongdu` | 서울용두초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ✅ | `seoul_imun` | 서울이문초등학교 | (sen-es) |
+| ✅ | `seoul_jangpyung` | 서울장평초등학교 | (sen-es) |
+| ✅ | `seoul_jeongok` | 서울전곡초등학교 | (sen-es) |
+| ✅ | `seoul_jeonnong` | 서울전농초등학교 | (sen-es) |
+| ✅ | `seoul_jeondong` | 서울전동초등학교 | (sen-es) |
+| ✅ | `seoul_jongam` | 서울종암초등학교 | (sen-es) |
+| ✅ | `seoul_chongryang` | 서울청량초등학교 | (sen-es) |
+| ✅ | `seoul_hongneung` | 서울홍릉초등학교 | (sen-es) |
+| ✅ | `seoul_hongpa` | 서울홍파초등학교 | (sen-es) |
+| ✅ | `seoul_hwykyung` | 서울휘경초등학교 | (sen-es) |
+| ✅ | `seoul_hwibong` | 서울휘봉초등학교 | (sen-es) |
+| ✅ | `eunseok` | 은석초등학교 | (sen-es) |
+
+### 서울 중랑 — 22/24 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ➖ | `kumsung_es` | 금성초등학교 | NEIS 메뉴만 (사진 미지원 의도) |
+| ✅ | `seoul_dongwon` | 서울동원초등학교 | (sen-es) |
+| ✅ | `seoul_mangwoo` | 서울망우초등학교 | (sen-es) |
+| ✅ | `seoul_myunnam` | 서울면남초등학교 | (sen-es) |
+| ✅ | `seoul_myeondong` | 서울면동초등학교 | (sen-es) |
+| ✅ | `seoul_myeonmok` | 서울면목초등학교 | (sen-es) |
+| ✅ | `seoul_myeonbuk` | 서울면북초등학교 | (sen-es) |
+| ✅ | `seoul_myeonil` | 서울면일초등학교 | (sen-es) |
+| ⬜ | `seoul_myunjoong` | 서울면중초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ✅ | `seoul_mookdong` | 서울묵동초등학교 | (sen-es) |
+| ✅ | `seoul_mookhyun` | 서울묵현초등학교 | (sen-es) |
+| ✅ | `seoul_bonghwa` | 서울봉화초등학교 | (sen-es) |
+| ✅ | `seoul_sangbong` | 서울상봉초등학교 | (sen-es) |
+| ✅ | `seoul_saesol` | 서울새솔초등학교 | (sen-es) |
+| ✅ | `seoul_sinnae` | 서울신내초등학교 | (sen-es) |
+| ✅ | `seoul_sinmook` | 서울신묵초등학교 | (sen-es) |
+| ✅ | `seoul_shinhyun` | 서울신현초등학교 | (sen-es) |
+| ✅ | `seoul_yangwonsoop` | 서울양원숲초등학교 | (sen-es) |
+| ✅ | `seoul_wonmuk` | 서울원묵초등학교 | (sen-es) |
+| ✅ | `seoul_jungkok` | 서울중곡초등학교 | (sen-es) |
+| ✅ | `seoul_jungnang` | 서울중랑초등학교 | (sen-es) |
+| ✅ | `seoul_joongmok` | 서울중목초등학교 | (sen-es) |
+| ✅ | `seoul_junghwa` | 서울중화초등학교 | (sen-es) |
+| ✅ | `seoul_jungheung` | 서울중흥초등학교 | (sen-es) |
+
+### 서울 성북 — 29/29 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ✅ | `kwangwoon_es` | 광운초등학교 | (sen-es) |
+| ✅ | `daegwang_es` | 대광초등학교 | (sen-es) |
+| ✅ | `maewon_es` | 매원초등학교 | (sen-es) |
+| ✅ | `seoul_gaewoon` | 서울개운초등학교 | (sen-es) |
+| ✅ | `seoul_gilwon` | 서울길원초등학교 | (sen-es) |
+| ✅ | `seoul_gireum` | 서울길음초등학교 | (sen-es) |
+| ✅ | `seoul_donam` | 서울돈암초등학교 | (sen-es) |
+| ✅ | `seoul_dongsin_sb` | 서울동신초등학교 | (sen-es) |
+| ✅ | `seoul_mia` | 서울미아초등학교 | (sen-es) |
+| ✅ | `seoul_samsun` | 서울삼선초등학교 | (sen-es) |
+| ✅ | `seoul_sukgye` | 서울석계초등학교 | (sen-es) |
+| ✅ | `seoul_seokgwan` | 서울석관초등학교 | (sen-es) |
+| ✅ | `seoul_sungbuk` | 서울성북초등학교 | (sen-es) |
+| ✅ | `seoul_soonggok` | 서울숭곡초등학교 | (sen-es) |
+| ✅ | `seoul_soongduck` | 서울숭덕초등학교 | (sen-es) |
+| ✅ | `seoul_sungrye` | 서울숭례초등학교 | (sen-es) |
+| ✅ | `seoul_soongin` | 서울숭인초등학교 | (sen-es) |
+| ✅ | `seoul_anam` | 서울안암초등학교 | (sen-es) |
+| ✅ | `seoul_wolgok_sb` | 서울월곡초등학교 | (sen-es) |
+| ✅ | `seoul_ilshin` | 서울일신초등학교 | (sen-es) |
+| ✅ | `seoul_janggok` | 서울장곡초등학교 | (sen-es) |
+| ✅ | `seoul_jangwol_sb` | 서울장월초등학교 | (sen-es) |
+| ✅ | `seoul_jangwi` | 서울장위초등학교 | (sen-es) |
+| ✅ | `seoul_jeongdeok` | 서울정덕초등학교 | (sen-es) |
+| ✅ | `seoul_jeongneung` | 서울정릉초등학교 | (sen-es) |
+| ✅ | `seoul_jungsu` | 서울정수초등학교 | (sen-es) |
+| ✅ | `seoul_cheongdeok` | 서울청덕초등학교 | (sen-es) |
+| ✅ | `sungshin_es` | 성신초등학교 | (sen-es) |
+| ✅ | `uchon_es` | 우촌초등학교 | (sen-es) |
+
+### 서울 강북 — 12/14 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ⬜ | `seoul_miyang` | 서울미양초등학교 | 미업로드 또는 외부 차단 (미확인) |
+| ✅ | `seoul_beondong` | 서울번동초등학교 | (sen-es) |
+| ✅ | `seoul_samgaksan` | 서울삼각산초등학교 | (sen-es) |
+| ✅ | `seoul_samyang` | 서울삼양초등학교 | (sen-es) |
+| ✅ | `seoul_songjoong` | 서울송중초등학교 | (sen-es) |
+| ✅ | `seoul_songcheon` | 서울송천초등학교 | (sen-es) |
+| ✅ | `seoul_soosong` | 서울수송초등학교 | (sen-es) |
+| ✅ | `seoul_suyu` | 서울수유초등학교 | (sen-es) |
+| ✅ | `seoul_ohhyun` | 서울오현초등학교 | (sen-es) |
+| ✅ | `seoul_wooi` | 서울우이초등학교 | (sen-es) |
+| ✅ | `seoul_youhyeon` | 서울유현초등학교 | (sen-es) |
+| ✅ | `seoul_insu` | 서울인수초등학교 | (sen-es) |
+| ✅ | `seoul_hwagye` | 서울화계초등학교 | (sen-es) |
+| ➖ | `younghoon_es` | 영훈초등학교 | NEIS 메뉴만 (사진 미지원 의도) |
+
 ### 서울 도봉 — 22/23 사진 가능
 
 | 상태 | id | 학교 | 비고 |
@@ -627,4 +825,21 @@
 | ✅ | `cheongwon` | 청원초등학교 | (sen-es) |
 | ✅ | `taegang` | 태강삼육초등학교 | (sen-es) |
 | ✅ | `hwarang` | 화랑초등학교 | (sen-es) |
+
+### 서울 중구 — 11/12 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ✅ | `dongsan_jg` | 동산초등학교 | (sen-es) |
+| ➖ | `lila` | 리라초등학교 | NEIS 메뉴만 (사진 미지원 의도) |
+| ✅ | `seoul_gwanghee` | 서울광희초등학교 | (sen-es) |
+| ✅ | `seoul_namsan` | 서울남산초등학교 | (sen-es) |
+| ✅ | `seoul_deoksoo` | 서울덕수초등학교 | (sen-es) |
+| ✅ | `seoul_bongrae` | 서울봉래초등학교 | (sen-es) |
+| ✅ | `seoul_sindang` | 서울신당초등학교 | (sen-es) |
+| ✅ | `seoul_jangchung` | 서울장충초등학교 | (sen-es) |
+| ✅ | `seoul_cheonggu` | 서울청구초등학교 | (sen-es) |
+| ✅ | `seoul_chungmu` | 서울충무초등학교 | (sen-es) |
+| ✅ | `seoul_heungin` | 서울흥인초등학교 | (sen-es) |
+| ✅ | `soongeui` | 숭의초등학교 | (sen-es) |
 

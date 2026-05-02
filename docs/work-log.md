@@ -2777,4 +2777,32 @@ Phase E 두 번째 자치구. 23교 sen.es.kr + 1교 (금성초) host kumsung.ne
 Phase E 세 번째 자치구. 모두 sen.es.kr (사립 광운·대광·매원·성신·우촌 5교 포함).
 동신/월곡/장월은 동음 학교 있어 `_sb` suffix.
 
+---
+
+## Stage 14-25 — 서울 강북구 14교 (2026-05-03, 서울 25구 완료)
+
+Phase E 마지막 자치구. 13교 sen.es.kr + 1교 (영훈초) host younghoon.es.kr → scrape 생략.
+
+## Phase D+E 완료 + 서울 25구 전체 완료 (2026-05-03)
+
+Phase D: 용산·종로·중구·성동·광진 5구 82교
+Phase E: 동대문·중랑·성북·강북 4구 88교
+Phase D+E 합계: 9구 170교
+
+서울 25구 전체 등록 완료. 누적 **685교** (경기 4도시 75 + 서울 25구 610).
+
+### 효과 (685교 status 결과, ymd 20260428)
+
+- 사진 가능 ✅: **654교** (95.5%)
+- 사진 실패 ⬜: 24교 (Phase A 11 + Phase B+C 6 + Phase D+E 7)
+- scrape 생략 ➖: 7교 (천이·명지·한양·경복·금성·영훈·리라 — 의도된 NEIS 전용)
+
+신규 ⬜ 7교: seoul_bogwang·seoul_sinyongsan·seoul_itaewon (용산 3교),
+kyunghee_es·seoul_yongdu (동대문 2교), seoul_myunjoong (중랑), seoul_miyang (강북).
+회귀 변동 0 — 기존 ⬜ 17교 그대로.
+
+만점 자치구 4개 (종로 13/13, 성북 29/29 신규 + 기존 강서 35/35, 노원 42/42).
+
+다음 = main 머지 검토 (사용자 정책상 서울 다 끝난 뒤).
+
 
