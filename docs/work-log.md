@@ -2737,4 +2737,11 @@ s-cheongpa→seoul_cheongpa, skes→singwang).
 Phase D 두 번째 자치구. 모두 sen.es.kr. 사립 비율 높음 (상명대부속·서울대부설·운현·명신).
 서울 prefix 없는 사립 1교 (운현). 매동초는 다른 자치구 매동과 구분 위해 `seoul_maedong_jr`.
 
+---
+
+## Stage 14-19 — 서울 중구 12교 (2026-05-03)
+
+Phase D 세 번째 자치구. 11교 sen.es.kr + 1교 (리라초) host=lila.es.kr → scrape 생략.
+동산초·숭의초 사립이지만 host sen.es.kr 라 등록.
+
 
