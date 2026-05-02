@@ -2609,4 +2609,12 @@ sh→seoul_sincheon, stosung→seoul_tosung).
 수집서버PC Claude Code 가 통합 runbook (docs/runbook-stage14-phaseA-rest.md)
 받아 sequential 실행 첫 stage.
 
+---
+
+## Stage 14-6 — 서울 강동구 29교 (2026-05-02)
+
+Phase A 다섯 번째 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음.
+약칭 host 다수 (gme→seoul_gangmyeong, gbe→seoul_gangbit,
+scd→seoul_cheondong).
+
 

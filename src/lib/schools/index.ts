@@ -9,6 +9,7 @@
  *   seoul/dongjak.ts     — 서울 동작구 (Stage 14-2)
  *   seoul/gangnam.ts     — 서울 강남구 34교 (Stage 14-4)
  *   seoul/songpa.ts      — 서울 송파구 41교 (Stage 14-5)
+ *   seoul/gangdong.ts    — 서울 강동구 29교 (Stage 14-6)
  *   seoul/<자치구>.ts    — Phase A~E 진행하며 추가
  *
  * Stage 3 에서 사진 미러를 켜면 'scrape' 가 있는 학교만 미러 대상이 된다.
@@ -23,6 +24,7 @@ import { DONGJAK_SCHOOLS } from './seoul/dongjak';
 import { GWANAK_SCHOOLS } from './seoul/gwanak';
 import { GANGNAM_SCHOOLS } from './seoul/gangnam';
 import { SONGPA_SCHOOLS } from './seoul/songpa';
+import { GANGDONG_SCHOOLS } from './seoul/gangdong';
 
 export type SchoolLevel = 'elementary' | 'middle' | 'high';
 
@@ -51,6 +53,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
   ...GWANAK_SCHOOLS,
   ...GANGNAM_SCHOOLS,
   ...SONGPA_SCHOOLS,
+  ...GANGDONG_SCHOOLS,
 };
 
 export const DEFAULT_SCHOOL_ID = 'chonggye';
