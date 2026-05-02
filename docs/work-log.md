@@ -2730,4 +2730,11 @@ Phase D 첫 자치구. 모두 sen.es.kr (신광초 사립 포함). id 충돌 없
 host 약칭 (seoul-nj→seoul_namjeong, sys→seoul_sinyongsan,
 s-cheongpa→seoul_cheongpa, skes→singwang).
 
+---
+
+## Stage 14-18 — 서울 종로구 13교 (2026-05-03)
+
+Phase D 두 번째 자치구. 모두 sen.es.kr. 사립 비율 높음 (상명대부속·서울대부설·운현·명신).
+서울 prefix 없는 사립 1교 (운현). 매동초는 다른 자치구 매동과 구분 위해 `seoul_maedong_jr`.
+
 
