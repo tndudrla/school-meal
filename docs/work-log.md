@@ -2596,4 +2596,17 @@ id 와 host subdomain 다른 케이스 다수:
 - Stage 14-5+: 송파·강동·금천 (Phase A 잔여)
 - Phase A 끝나면 (~286교) main 머지 검토
 
+---
+
+## Stage 14-5 — 서울 송파구 41교 (2026-05-02)
+
+Phase A 네 번째 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음.
+host subdomain 의 `s-` / `s` prefix strip 케이스 다수 (s-namcheon→seoul_namcheon,
+smacheon→seoul_macheon, s-mh→seoul_moonhyeon, sbangsan→seoul_bangsan,
+seoulbeodle→seoul_beodle, sree→seoul_songrye, ssj→seoul_songjeon,
+sh→seoul_sincheon, stosung→seoul_tosung).
+
+수집서버PC Claude Code 가 통합 runbook (docs/runbook-stage14-phaseA-rest.md)
+받아 sequential 실행 첫 stage.
+
 
