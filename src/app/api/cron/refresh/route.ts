@@ -105,6 +105,53 @@ export async function GET(request: NextRequest) {
   // 4. 슬라이딩 윈도우 cleanup (전 학교 공통, 키 있을 때만)
   const prune = mirrorOn ? await pruneOldPhotos(ymd) : { enabled: false, pruned: 0 };
 
+  // 진단 (2026-05-03 임시) — 685교 시점 미러 누락 원인 추적용. 다음 stage 에서 제거.
+  type MirrorStats = {
+    no_mirror_field: number;
+    disabled: number;
+    errored: number;
+    uploaded_some: number;
+    empty: number;
+    total_photos_count: number;
+    zero_photos: string[];
+  };
+  const mirrorStats: MirrorStats = perSchool.reduce<MirrorStats>(
+    (acc, r) => {
+      const m = r.mirror as { enabled?: boolean; uploaded?: number; failed?: number; missing?: number; error?: string } | undefined;
+      const photos = r.photos as { count?: number } | undefined;
+      if (!m) acc.no_mirror_field += 1;
+      else if (!m.enabled) acc.disabled += 1;
+      else if (m.error) acc.errored += 1;
+      else if ((m.uploaded ?? 0) > 0) acc.uploaded_some += 1;
+      else acc.empty += 1;
+      acc.total_photos_count += photos?.count ?? 0;
+      if ((photos?.count ?? 0) === 0) acc.zero_photos.push(String(r.schoolId));
+      return acc;
+    },
+    {
+      no_mirror_field: 0,
+      disabled: 0,
+      errored: 0,
+      uploaded_some: 0,
+      empty: 0,
+      total_photos_count: 0,
+      zero_photos: [],
+    }
+  );
+  console.log('[cron-diag]', {
+    schools_total: perSchool.length,
+    mirrorEnabled: mirrorOn,
+    mirror_buckets: {
+      no_mirror_field: mirrorStats.no_mirror_field,
+      disabled: mirrorStats.disabled,
+      errored: mirrorStats.errored,
+      uploaded_some: mirrorStats.uploaded_some,
+      empty: mirrorStats.empty,
+    },
+    total_photos_count: mirrorStats.total_photos_count,
+    zero_photos_sample: mirrorStats.zero_photos.slice(0, 10),
+  });
+
   return NextResponse.json({
     triggeredAt: new Date().toISOString(),
     ymd,
