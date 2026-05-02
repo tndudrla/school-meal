@@ -2629,4 +2629,11 @@ Phase A 마지막 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음.
 서울 6개 자치구 + 경기 4도시 누적 264교 = 25개 자치구 중 6 / 25.
 다음 = Phase B (영등포·구로·양천·강서·노원·도봉) 100여교.
 
+---
+
+## Stage 14-8 — 서울 영등포구 23교 (2026-05-02)
+
+Phase B 첫 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음.
+host 약칭 다수 (idaegil→seoul_daegil, sdr→seoul_sindaerim, syw→seoul_youngwon, ydp→seoul_yeongdeungpo).
+
 
