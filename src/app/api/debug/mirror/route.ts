@@ -33,6 +33,42 @@ export async function GET(request: NextRequest) {
   const sb = getServiceRoleClient();
   const supabaseClient = sb ? 'ok' : 'null (env missing or createClient fail)';
 
+  // 단일 학교 trace 옵션: ?schoolId=seoul_gaepo
+  const url = new URL(request.url);
+  const single = url.searchParams.get('schoolId');
+  if (single) {
+    const all = listSchools();
+    const target = all.find((s) => s.id === single);
+    if (!target) {
+      return NextResponse.json({ error: `unknown schoolId: ${single}` }, { status: 404 });
+    }
+    if (!target.scrape) {
+      return NextResponse.json({ schoolId: target.id, no_scrape: true });
+    }
+    const t0 = Date.now();
+    try {
+      const map = await fetchWeekPhotos(target.scrape, yesterdayYmd);
+      return NextResponse.json({
+        schoolId: target.id,
+        kind: target.scrape.kind,
+        host: 'host' in target.scrape ? target.scrape.host : undefined,
+        yesterdayYmd,
+        elapsedMs: Date.now() - t0,
+        photoCount: Object.keys(map).length,
+        photos: map,
+      });
+    } catch (err) {
+      return NextResponse.json({
+        schoolId: target.id,
+        kind: target.scrape.kind,
+        yesterdayYmd,
+        elapsedMs: Date.now() - t0,
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+    }
+  }
+
   const schools = listSchools();
 
   type Slot = {
