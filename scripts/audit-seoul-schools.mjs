@@ -53,17 +53,28 @@ function parseArgs(argv) {
 // ----- 학교 목록 수집 ---------------------------------------------------------
 
 /**
- * src/lib/schools.ts 또는 src/lib/schools/seoul/*.ts 에서 seoul_ prefix 학교의
+ * src/lib/schools/seoul/*.ts (Stage 14-2+ 디렉터리 구조) 또는 옛
+ * src/lib/schools.ts (Stage 14-1 단일 파일) 에서 seoul_ prefix 학교의
  * { id, host } 만 추출. 정규식 파싱이라 ts 빌드 불필요.
  */
 async function readSeoulSchoolsFromSource() {
-  // 우선 src/lib/schools.ts 단일 파일 케이스 (Stage 14-1 시점)
-  const path = 'src/lib/schools.ts';
+  const dirPath = 'src/lib/schools/seoul';
   try {
-    const txt = await fs.readFile(path, 'utf8');
+    const files = await fs.readdir(dirPath);
+    const all = [];
+    for (const f of files) {
+      if (!f.endsWith('.ts')) continue;
+      const txt = await fs.readFile(`${dirPath}/${f}`, 'utf8');
+      all.push(...parseSeoulSchoolsFromText(txt));
+    }
+    if (all.length > 0) return all;
+  } catch {}
+
+  // 옛 단일 schools.ts
+  try {
+    const txt = await fs.readFile('src/lib/schools.ts', 'utf8');
     return parseSeoulSchoolsFromText(txt);
   } catch {
-    // 향후 분리됐을 때 대비 (Stage 14-2+)
     return [];
   }
 }

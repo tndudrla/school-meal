@@ -73,6 +73,7 @@
 - [Stage 14-1 — 서울 sen.es.kr 사진 scraper](#stage-14-1--서울-senesk-사진-scraper-2026-05-02) — 23교 사진 미러 활성화, discriminated union + kind 분기, 라이브 검증 시 GET vs POST 차이 발견·처방
 - [Stage 14-1-1 — 서초구 사진 누락 회귀 처방](#stage-14-1-1--서초구-사진-누락-회귀-처방-2026-05-02) — 사용자 잠원초 4/28 보고에서 출발. menuId 후보 probe + td-단위 day 추출로 사진 학교 2교 → 19교
 - [Stage 14-1-2 — 계성초 사립 PHP 게시판 scraper](#stage-14-1-2--계성초-사립-php-게시판-scraper-2026-05-02) — sajipSchoolScraper 신규, `kind: 'sajip-bbs'` union 추가. 사진 가능 19교 → 20교
+- [Stage 14-2 — 동작구 21교 + schools 디렉터리 분리](#stage-14-2--동작구-21교--schools-디렉터리-분리-2026-05-02) — Phase A 첫 자치구. `src/lib/schools/` 디렉터리 분리, 동작구 18/21 사진 가능. 등록 100교 → 121교
 
 ### 도구·운영 (2026-05-01 ~ )
 - [Slack 양방향 운영 셋업](#slack-양방향-운영-셋업-2026-05-01) — `Powerdaily` 워크스페이스 + `#claude-code` 채널, 폰 ↔ PC 작업 전환. 상세 가이드는 [`docs/slack-workflow.md`](./slack-workflow.md)
@@ -2380,5 +2381,109 @@ photoMirror·cron·photo API **변경 0** — union 라우터 시그니처 그�
   명시
 - 게시판 list 가 아닌 다른 메커니즘 (PDF 게시판, 한 글 안 다중 사진 등)
   사립학교는 별도 처방 필요
+
+---
+
+## Stage 14-2 — 동작구 21교 + schools 디렉터리 분리 (2026-05-02)
+
+### 발단
+
+서울 25개 자치구 확장 로드맵 (Phase A~E, Stage 14-2 ~ 14-25) 의 첫 자치구.
+서초 인접 동작구 = Phase A (강남권+인접) 의 시작점. 서초 이후 사용자 베타
+사용자 (지인 네트워크) 임팩트 가장 큰 구간.
+
+100교 (75 경기 + 24 서초 + 1 계성) 단일 `schools.ts` 약 870 lines —
+600교 추가 시 5500 lines 단일 파일 됨. 본 stage 에서 디렉터리 분리 인프라
+도 같이 처리 (1회성).
+
+### 변경
+
+| 파일 | 변경 |
+|---|---|
+| `src/lib/schools/index.ts` | 신규 — type, SCHOOLS 집합, getSchool/listSchools |
+| `src/lib/schools/gyeonggi.ts` | 신규 — 75교 이전 (과천·의왕·안양·군포) |
+| `src/lib/schools/seoul/seocho.ts` | 신규 — 24교 이전 (서초구) |
+| `src/lib/schools/seoul/dongjak.ts` | 신규 — 21교 (동작구) |
+| `src/lib/schools.ts` | **삭제** |
+| `scripts/extract-seoul-hosts.mjs` | `--district X구` 인자화 (Stage 14-3+ 재사용) |
+| `scripts/audit-seoul-schools.mjs` | 디렉터리 구조 우선 read, 옛 단일 파일 fallback |
+
+호출 사이트 (`page.tsx`, API routes, components) 변경 0 — `@/lib/schools`
+import 가 Next.js 모듈 resolution 으로 `index.ts` 자동 해석.
+
+### 동작구 21교
+
+모두 sen.es.kr 패턴. 사립 0교 (중앙대 부속 cau 도 sen.es.kr).
+host 는 NEIS HMPG_ADRES 일괄 추출값 그대로:
+
+```
+seoul_gangnam       gangnam.sen.es.kr           서울강남초
+seoul_namsa         namsa.sen.es.kr             서울남사초
+seoul_namsung       namsung.sen.es.kr           서울남성초
+seoul_noryangjin    noryangjin.sen.es.kr        서울노량진초
+seoul_daelim        seouldaelim.sen.es.kr       서울대림초
+seoul_dongjak       dongjak.sen.es.kr           서울동작초
+seoul_munchang      munchang.sen.es.kr          서울문창초
+seoul_boramae       boramae.sen.es.kr           서울보라매초
+seoul_bondong       bondong.sen.es.kr           서울본동초
+seoul_samil         samil.sen.es.kr             서울삼일초
+seoul_sangdo        seoulsangdo.sen.es.kr       서울상도초
+seoul_sanghyun      ssh.sen.es.kr               서울상현초
+seoul_singil        singil.sen.es.kr            서울신길초
+seoul_shinnamsung   shinnamsung.sen.es.kr       서울신남성초
+seoul_shinsangdo    shinsangdo.sen.es.kr        서울신상도초
+seoul_yeongbon      yeongbon.sen.es.kr          서울영본초
+seoul_younghwa      younghwa.sen.es.kr          서울영화초
+seoul_eunlo         eunlo.sen.es.kr             서울은로초
+seoul_haenglim      hrim.sen.es.kr              서울행림초
+seoul_heukseok      heukseok.sen.es.kr          서울흑석초
+seoul_cau           cau.sen.es.kr               중앙대학교사범대학부속초
+```
+
+id 와 subdomain 다른 학교 다수 (대림→seouldaelim, 상도→seoulsangdo,
+상현→ssh, 행림→hrim 등) — 모두 NEIS 값 그대로.
+
+### 검증 (4/28 기준)
+
+- 빌드 통과 (TypeScript 회귀 0)
+- 회귀 0: chonggye, seoul_seocho, seoul_jamwon, seoul_gyeseong 사진 정상
+- 동작구 audit: 21교 중 19교 menuId 발견 (heukseok, cau 만 NONE)
+- dev 측정: **18/21 사진 가능 (85.7%)**
+  - 미업로드 추정: bondong, heukseok, cau
+
+### 효과
+
+| 누적 | 등록 | 사진 가능 |
+|---|---|---|
+| Stage 14-1-2 | 100교 | (이전 합) |
+| **Stage 14-2** | **121교** | 동작구 추가 |
+
+### 후속
+
+- Stage 14-3: 관악구 22교 (동작 서쪽 인접)
+- Phase A 6 stages 끝나면 (~165교) main 머지 검토 가능
+- NEIS 키 Vercel env 등록 (사용자 별도 작업) — 600교 도달 전에 필수
+
+### 새 인프라 — 자치구 추가 표준 흐름
+
+Stage 14-3 ~ 14-25 매번 같은 흐름 ~20분~1시간:
+
+```bash
+# 1. host 추출
+NEIS_API_KEY=... node scripts/extract-seoul-hosts.mjs --district X구
+
+# 2. src/lib/schools/seoul/X.ts 작성
+# 3. schools/index.ts 에 import + spread
+
+# 4. 빌드 + dev 검증
+npm run build
+npm run dev
+curl http://localhost:3000/api/meal/photo?schoolId=seoul_X&ymd=YYYYMMDD
+
+# 5. audit
+node scripts/audit-seoul-schools.mjs
+
+# 6. work-log + commit
+```
 
 
