@@ -12,6 +12,7 @@
  *   seoul/gangdong.ts    — 서울 강동구 29교 (Stage 14-6)
  *   seoul/geumcheon.ts   — 서울 금천구 18교 (Stage 14-7)
  *   seoul/yeongdeungpo.ts — 서울 영등포구 23교 (Stage 14-8)
+ *   seoul/guro.ts        — 서울 구로구 27교 (Stage 14-9, 1교 scrape 생략)
  *   seoul/<자치구>.ts    — Phase A~E 진행하며 추가
  *
  * Stage 3 에서 사진 미러를 켜면 'scrape' 가 있는 학교만 미러 대상이 된다.
@@ -29,6 +30,7 @@ import { SONGPA_SCHOOLS } from './seoul/songpa';
 import { GANGDONG_SCHOOLS } from './seoul/gangdong';
 import { GEUMCHEON_SCHOOLS } from './seoul/geumcheon';
 import { YEONGDEUNGPO_SCHOOLS } from './seoul/yeongdeungpo';
+import { GURO_SCHOOLS } from './seoul/guro';
 
 export type SchoolLevel = 'elementary' | 'middle' | 'high';
 
@@ -60,6 +62,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
   ...GANGDONG_SCHOOLS,
   ...GEUMCHEON_SCHOOLS,
   ...YEONGDEUNGPO_SCHOOLS,
+  ...GURO_SCHOOLS,
 };
 
 export const DEFAULT_SCHOOL_ID = 'chonggye';

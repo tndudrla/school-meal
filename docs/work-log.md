@@ -2636,4 +2636,11 @@ Phase A 마지막 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음.
 Phase B 첫 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음.
 host 약칭 다수 (idaegil→seoul_daegil, sdr→seoul_sindaerim, syw→seoul_youngwon, ydp→seoul_yeongdeungpo).
 
+---
+
+## Stage 14-9 — 서울 구로구 27교 (2026-05-02)
+
+Phase B 두 번째 자치구. 26교 sen.es.kr + 1교 (천이초) HMPG_ADRES 빈값으로
+scrape 생략 (NEIS 메뉴만 노출, 사진 미지원). id 충돌 없음.
+
 
