@@ -2696,4 +2696,30 @@ scrape 생략 (NEIS 메뉴만 노출, 사진 미지원). 그 외 사립 다수 (
 등 host sen.es.kr 라 그대로 등록). id 충돌 없음. host 약칭 (sds→seoul_daesin,
 scs→seoul_changseo, hyc→seoul_hongyeon).
 
+---
+
+## Stage 14-16 — 서울 은평구 30교 (2026-05-02)
+
+Phase C 마지막 자치구. 모두 sen.es.kr (사립 3교 선일·예일·충암 포함).
+id 충돌 없음. host 약칭 (urwool→seoul_eoul, em→seoul_eunmyeong,
+ev→seoul_eunbit, yc1985→seoul_yeoncheon, susin→seoul_seosin).
+
+## Phase B+C 완료 (2026-05-02)
+
+서울 9개 자치구 (영등포·구로·양천·강서·노원·도봉·마포·서대문·은평) 추가
+= 25개 자치구 중 15 / 25.
+누적 **515교** (Phase A 264 + Phase B+C 251).
+다음 = Phase D+E (강북·도심권 10구) 약 600~800교.
+
+### 효과 (515교 status 결과)
+
+- 사진 가능 ✅: **496교** (96.3%)
+- 사진 실패 ⬜: 17교 (Phase A 11 + Phase B+C 신규 6)
+- scrape 생략 ➖: 2교 (천이초·명지초 — 의도된 NEIS 전용)
+
+신규 ⬜ 6교: seoul_youngwon (영등포), seoul_singang (양천), seoul_mapo·seoul_hongik
+(마포 2교), seoul_susaek (은평), dongbuk (도봉). 회귀 변동 0 — 기존 ⬜ 11교 그대로.
+
+만점 자치구 2개 등장 (강서 35/35, 노원 42/42).
+
 
