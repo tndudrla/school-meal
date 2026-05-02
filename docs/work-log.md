@@ -2751,4 +2751,11 @@ Phase D 세 번째 자치구. 11교 sen.es.kr + 1교 (리라초) host=lila.es.kr
 Phase D 네 번째 자치구. 20교 sen.es.kr + 1교 (한양초) host hye.or.kr → scrape 생략.
 id 충돌 회피 — 경일초·동명초는 동음 학교 있어 `_sd` suffix.
 
+---
+
+## Stage 14-21 — 서울 광진구 21교 (2026-05-03)
+
+Phase D 마지막 자치구. 20교 sen.es.kr + 1교 (경복초) host kbes.kr → scrape 생략.
+성동초·세종초 사립이지만 host sen.es.kr 라 등록.
+
 
