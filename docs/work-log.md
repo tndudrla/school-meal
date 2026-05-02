@@ -2669,4 +2669,13 @@ id 충돌 회피 — 노원구 청계초는 `seoul_chonggye_nw` (의왕 청계�
 한자 동일). host 약칭 (sw→seoul_sangwol, jg→seoul_junggye, scg→seoul_chonggye_nw,
 yong1→seoul_yongwon).
 
+---
+
+## Stage 14-13 — 서울 도봉구 23교 (2026-05-02)
+
+Phase B 여섯 번째 자치구. 모두 sen.es.kr. 서울 prefix 없는 사립 2교
+(동북·한신) 도 host sen.es.kr. id 충돌 없음. host 약칭
+(sbh→seoul_sinbanghak, wol→seoul_wolcheon, s-baegun→seoul_baegun,
+changdong-s→seoul_changdong).
+
 
