@@ -6,8 +6,8 @@
 
 ## 요약
 
-- 등록: **120교**
-- 사진 가능 ✅: **114교** (95.0%)
+- 등록: **142교**
+- 사진 가능 ✅: **136교** (95.8%)
 - 사진 실패 ⬜: 6교 (학교 미업로드 또는 외부 차단)
 
 ## 자치구별 현황
@@ -161,4 +161,31 @@
 | ✅ | `seoul_haenglim` | 서울행림초등학교 | (sen-es) |
 | ⬜ | `seoul_heukseok` | 서울흑석초등학교 | 4월 전체 미업로드 (자동 검증 2026-05-02 — 평일 22일 모두 0건) |
 | ⬜ | `seoul_cau` | 중앙대학교사범대학부속초등학교 | 4월 전체 미업로드 (자동 검증 2026-05-02 — 평일 22일 모두 0건) |
+
+### 서울 관악 — 22/22 사진 가능
+
+| 상태 | id | 학교 | 비고 |
+|---|---|---|---|
+| ✅ | `seoul_kwanak` | 서울관악초등학교 | (sen-es) |
+| ✅ | `seoul_guam` | 서울구암초등학교 | (sen-es) |
+| ✅ | `seoul_nangok` | 서울난곡초등학교 | (sen-es) |
+| ✅ | `seoul_nanwoo` | 서울난우초등학교 | (sen-es) |
+| ✅ | `seoul_nanhyang` | 서울난향초등학교 | (sen-es) |
+| ✅ | `seoul_nambu` | 서울남부초등학교 | (sen-es) |
+| ✅ | `seoul_danggok` | 서울당곡초등학교 | (sen-es) |
+| ✅ | `seoul_misung` | 서울미성초등학교 | (sen-es) |
+| ✅ | `seoul_bongcheon` | 서울봉천초등학교 | (sen-es) |
+| ✅ | `seoul_bonghyun` | 서울봉현초등학교 | (sen-es) |
+| ✅ | `seoul_sadang` | 서울사당초등학교 | (sen-es) |
+| ✅ | `seoul_samseong` | 서울삼성초등학교 | (sen-es) |
+| ✅ | `seoul_sillim` | 서울신림초등학교 | (sen-es) |
+| ✅ | `seoul_sinbong` | 서울신봉초등학교 | (sen-es) |
+| ✅ | `seoul_sinseong` | 서울신성초등학교 | (sen-es) |
+| ✅ | `seoul_sinwoo` | 서울신우초등학교 | (sen-es) |
+| ✅ | `seoul_wondang` | 서울원당초등학교 | (sen-es) |
+| ✅ | `seoul_wonshin` | 서울원신초등학교 | (sen-es) |
+| ✅ | `seoul_euncheon` | 서울은천초등학교 | (sen-es) |
+| ✅ | `seoul_inhun` | 서울인헌초등학교 | (sen-es) |
+| ✅ | `seoul_jowon` | 서울조원초등학교 | (sen-es) |
+| ✅ | `seoul_chungryong` | 서울청룡초등학교 | (sen-es) |
 

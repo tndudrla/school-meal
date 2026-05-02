@@ -18,6 +18,7 @@ import type { SchoolScrape } from '../schoolScraper';
 import { GYEONGGI_SCHOOLS } from './gyeonggi';
 import { SEOCHO_SCHOOLS } from './seoul/seocho';
 import { DONGJAK_SCHOOLS } from './seoul/dongjak';
+import { GWANAK_SCHOOLS } from './seoul/gwanak';
 
 export type SchoolLevel = 'elementary' | 'middle' | 'high';
 
@@ -43,6 +44,7 @@ export const SCHOOLS: Record<string, SchoolConfig> = {
   ...GYEONGGI_SCHOOLS,
   ...SEOCHO_SCHOOLS,
   ...DONGJAK_SCHOOLS,
+  ...GWANAK_SCHOOLS,
 };
 
 export const DEFAULT_SCHOOL_ID = 'chonggye';

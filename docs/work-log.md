@@ -76,6 +76,7 @@
 - [Stage 14-1-1 — 서초구 사진 누락 회귀 처방](#stage-14-1-1--서초구-사진-누락-회귀-처방-2026-05-02) — 사용자 잠원초 4/28 보고에서 출발. menuId 후보 probe + td-단위 day 추출로 사진 학교 2교 → 19교
 - [Stage 14-1-2 — 계성초 사립 PHP 게시판 scraper](#stage-14-1-2--계성초-사립-php-게시판-scraper-2026-05-02) — sajipSchoolScraper 신규, `kind: 'sajip-bbs'` union 추가. 사진 가능 19교 → 20교
 - [Stage 14-2 — 동작구 21교 + schools 디렉터리 분리](#stage-14-2--동작구-21교--schools-디렉터리-분리-2026-05-02) — Phase A 첫 자치구. `src/lib/schools/` 디렉터리 분리, 동작구 18/21 사진 가능. 등록 100교 → 121교
+- [Stage 14-3 — 관악구 22교](#stage-14-3--관악구-22교-2026-05-02) — Phase A 두 번째 자치구. 동작 서쪽 인접. 등록 121교 → 142교
 
 ### 도구·운영 (2026-05-01 ~ )
 - [Slack 양방향 운영 셋업](#slack-양방향-운영-셋업-2026-05-01) — `Powerdaily` 워크스페이스 + `#claude-code` 채널, 폰 ↔ PC 작업 전환. 상세 가이드는 [`docs/slack-workflow.md`](./slack-workflow.md)
@@ -2487,5 +2488,55 @@ node scripts/audit-seoul-schools.mjs
 
 # 6. work-log + commit
 ```
+
+---
+
+## Stage 14-3 — 관악구 22교 (2026-05-02)
+
+### 발단
+
+Phase A (강남권+인접) 두 번째 자치구. 동작 서쪽 인접 관악구 22교.
+Stage 14-2 의 인프라 (schools 디렉터리, extract-seoul-hosts 인자, audit) 그대로 재사용.
+
+### 변경
+
+| 파일 | 변경 |
+|---|---|
+| `src/lib/schools/seoul/gwanak.ts` | 신규 — 22교 |
+| `src/lib/schools/index.ts` | `GWANAK_SCHOOLS` import + spread |
+
+`schoolScraper`·`photoMirror`·`cron`·`photo API` 변경 0 — Stage 14-1-1 처방으로
+sen-es 라벨 다양성 흡수.
+
+### 관악구 22교
+
+모두 sen.es.kr 패턴. 사립 0. id 와 host subdomain 다른 학교 다수:
+- `seoul_kwanak` → `seoul-kwanak.sen.es.kr` (subdomain 에 하이픈)
+- `seoul_guam` → `seoulguam.sen.es.kr`
+- `seoul_nambu` → `seoulnambu.sen.es.kr`
+- `seoul_sinwoo` → `seoulsinwoo.sen.es.kr`
+- `seoul_sinseong` → `sss.sen.es.kr` (3글자 약칭)
+- `seoul_sillim` → `sillim.sen.es.kr`
+
+기존 학교 (서초·동작) 와 id 충돌 0 검증 완료.
+
+### 검증 (4/28 + 4월 한 달)
+
+- 빌드 통과 (TypeScript 회귀 0)
+- 회귀 0: chonggye, seoul_seocho, seoul_dongjak 정상
+- 샘플 4교 (kwanak·sillim·bongcheon·inhun) 모두 4/28 사진 정상
+- status 자동 측정 결과: `docs/school-status.md` 갱신
+
+### 효과
+
+| 누적 | 등록 |
+|---|---|
+| Stage 14-2 | 120교 |
+| **Stage 14-3** | **142교** (+22) |
+
+### 후속
+
+- Stage 14-4: 강남구 34교 (Phase A 세 번째)
+- Phase A 6 stages 끝나면 (~286교) main 머지 검토
 
 
