@@ -370,12 +370,91 @@ NEIS·미러 둘 다 정적이 아니라 캐싱 정책이 까다로움 (어느 �
 ### 4. 개선사항 피드백 답변 — "서울도 업데이트 해주세요"
 
 **배경**: 사용자 피드백 폼에 "서울도 업데이트 해주세요" 같은 요청 들어옴
-(이미 등록 진행 중인지 모르고 보낸 것 같음)
+(이미 등록 진행 중인지 모르고 보낸 것 같음). 2026-05-03 기준 서울 25구 전체
++ 경기 4도시 = 685교 등록 완료. 이제 답변 가능.
 
 **처방**: 피드백 채널 (Supabase `feedback` 테이블 또는 사용자 응답 채널) 에서
 다음 같은 답변:
-> "서울 25개 자치구 등록 작업 진행 중입니다. 2026-05-03 기준 N구 / 25구 완료
-> (M교 등록). 본인 학교가 검색에 안 뜨면 학교명 알려주세요 — 우선 등록
+> "서울 25개 자치구 + 경기 의왕·안양·과천·군포 합계 685교 등록 완료
+> (2026-05-03). 본인 학교가 검색에 안 뜨면 학교명 알려주세요 — 우선 등록
 > 처리해드립니다."
 
 피드백 답변 채널이 어디인지 (이메일/Supabase 테이블/X 등) 사용자 확인 후 진행.
+
+### 5. 사진 안 되는 31교 일괄 처리 (서울 25구 완료 후)
+
+**배경**: 2026-05-03 서울 25구 + 경기 4도시 합계 685교 등록 완료. 그 중 31교
+(약 4.5%) 가 사진 자동 수집 안 됨. 등록 시점에 사용자 결정 = "서울 다 끝나고
+한 번에 일괄 확인". 그 시점이 지금. 단 다른 우선순위 task 가 있어 보류.
+
+**31교 분류**:
+
+#### a) ⬜ 사용자 확인 끝난 9교 (사유 박힘)
+
+| id | 학교 | 사유 |
+|---|---|---|
+| `kwanmun` | 관문초 (경기 의왕) | 미업로드 |
+| `kwanyang` | 관양초 (경기 안양) | 외부 차단 |
+| `seoul_banpo` | 서울반포초 | 미업로드 |
+| `seoul_bondong`/`seoul_heukseok`/`seoul_cau` | 동작구 3교 | 4월 전체 미업로드 (자동 검증) |
+| `seoul_daecheong`/`seoul_bongeun` | 강남구 2교 | 미업로드 |
+| `seoul_yulhyeon` | 강남 율현초 | **외부 뷰어 (viewhosting.ssem.or.kr blob URL)** — 별도 task |
+
+#### b) ⬜ 미확인 15교 (사용자 직접 학교 홈페이지 확인 필요)
+
+| id | 학교 | 자치구 | 홈페이지 |
+|---|---|---|---|
+| `seoul_gaerong` | 서울개롱초 | 송파 | https://gaerong.sen.es.kr |
+| `seoul_geumdong` | 서울금동초 | 금천 | https://geumdong.sen.es.kr |
+| `seoul_youngwon` | 서울영원초 | 영등포 | https://syw.sen.es.kr |
+| `seoul_singang` | 서울신강초 | 양천 | https://singang.sen.es.kr |
+| `seoul_mapo` | 서울마포초 | 마포 | https://mapo.sen.es.kr |
+| `seoul_hongik` | 홍익대부속 | 마포 | https://hongik.sen.es.kr |
+| `seoul_susaek` | 서울수색초 | 은평 | https://susaek.sen.es.kr |
+| `seoul_bogwang` | 서울보광초 | 용산 | https://bogwang.sen.es.kr |
+| `seoul_sinyongsan` | 서울신용산초 | 용산 | https://sys.sen.es.kr |
+| `seoul_itaewon` | 서울이태원초 | 용산 | https://itaewon.sen.es.kr |
+| `kyunghee_es` | 경희초 | 동대문 | https://kyunghee.sen.es.kr |
+| `seoul_yongdu` | 서울용두초 | 동대문 | https://yongdu.sen.es.kr |
+| `seoul_myunjoong` | 서울면중초 | 중랑 | https://myunjoong.sen.es.kr |
+| `seoul_miyang` | 서울미양초 | 강북 | https://mi-yang.sen.es.kr |
+| `dongbuk` | 동북초 | 도봉 | https://dongbuk.sen.es.kr |
+
+**처방**: 각 학교 홈페이지 4월 사진 게시판 직접 확인 → 분류 후
+`scripts/generate-school-status.mjs` 의 `VERIFIED_REASONS` 에 일괄 등재 →
+status 재생성 → commit + push.
+
+각 학교당 결과 셋 중 하나:
+1. 미업로드 (4월 사진 없음) → "미업로드 (사용자 확인 YYYY-MM-DD)"
+2. 외부 차단 (홈페이지 자체 접근 불가) → "외부 접근 차단 (사용자 확인 ...)"
+3. 사진 있음 → 코드 버그·새 scraper 패턴. 별도 조사 task 분기
+
+#### c) ➖ scrape 의도적 생략 7교 (비표준 도메인 사립)
+
+| id | 학교 | host |
+|---|---|---|
+| `seoul_cheoni` | 서울천이초 (구로) | (NEIS 빈값) |
+| `myongji` | 명지초 (서대문) | www.myongji.net |
+| `lila` | 리라초 (중구) | www.lila.es.kr |
+| `hanyang_es` | 한양초 (성동) | www.hye.or.kr |
+| `gyeongbok_es` | 경복초 (광진) | www.kbes.kr |
+| `kumsung_es` | 금성초 (중랑) | www.kumsung.net |
+| `younghoon_es` | 영훈초 (강북) | www.younghoon.es.kr |
+
+**처방 옵션** (우선순위 낮음):
+1. 그대로 두기 — 메뉴는 정상 노출, 사진만 빈 영역. 학부모는 학교 홈페이지로
+2. 학교별 scraper 추가 — 게시판 구조 분석 후 host 별 처방. 노력 多 / 깨지기 쉬움
+3. 공통 사립 scraper (`sajip-bbs` kind) — 흔한 CMS (그누보드/아이엘 등) 패턴
+   분석. 1~2개 패턴으로 7교 흡수 시도. 노력 中 / 가성비 上
+
+#### d) `seoul_yulhyeon` 율현초 외부 뷰어 — 별도 task
+
+`viewhosting.ssem.or.kr` 에 blob URL 로 사진 띄움. 일반 게시판 X.
+브라우저 DevTools Network 탭으로 인증 흐름 분석 후 새 scraper kind 검토.
+
+**예상 작업 시간**:
+- b 미확인 15교 사용자 확인 = 약 30분
+- VERIFIED_REASONS 등재 + status 재생성 + commit = 10분
+- c 사립 scraper 분석 + 구현 = 별도 stage (4~8시간)
+- d 율현 ssem 뷰어 = 별도 stage (2~4시간)
+
