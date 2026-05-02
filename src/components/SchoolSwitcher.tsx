@@ -1,12 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { listSchools } from '@/lib/schools';
 import type { SchoolConfig } from '@/lib/schools';
 
 const FAV_KEY = 'favoriteSchoolIds';
 const HOME_KEY = 'homeSchoolId';
+
+// region 명 → 칩에 보일 짧은 라벨. "서울 강남" / "경기 과천" 같은 prefix 떼기.
+function shortRegionLabel(region: string): string {
+  return region.replace(/^(서울|경기)\s+/, '').trim() || region;
+}
+
+// region 헤더 DOM 의 id (scrollIntoView 대상)
+function regionAnchorId(region: string): string {
+  return `schoolswitcher-region-${region.replace(/\s+/g, '-')}`;
+}
 
 interface Props {
   /** 현재 선택된 학교 id */
@@ -29,6 +39,13 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
   const [homeSchoolId, setHomeSchoolIdState] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState('');
+  // 자치구별 펼침 상태 — 685교 시점 첫 페인트 가벼움 + 자기 자치구만
+  // 펼치는 직관 위해 도입. 합집합 방식: 사용자 수동 expand 유지.
+  const [expandedRegions, setExpandedRegions] = useState<Set<string>>(
+    () => new Set()
+  );
+  // 모달 본문 스크롤 컨테이너 — 칩 jumpTo 시 scrollIntoView 대상.
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // SSR 안전: portal 은 mount 이후에만 렌더
   useEffect(() => {
@@ -157,6 +174,62 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
     return Array.from(map.entries());
   }, [all]);
 
+  // 칩 줄에 노출할 region 순서 — groupedByRegion 와 동일 순서 (SCHOOLS spread 순)
+  const regions = useMemo(() => groupedByRegion.map(([r]) => r), [groupedByRegion]);
+
+  // 즐겨찾기 / 홈 학교 자치구 자동 expand. 사용자가 수동으로 닫지 않는 한 유지.
+  // 합집합 방식 — auto 에 빠진 region 도 사용자가 expand 했으면 그대로 둠.
+  useEffect(() => {
+    const auto = new Set<string>();
+    for (const s of all) {
+      if (favoriteIds.includes(s.id)) auto.add(s.region);
+    }
+    if (homeSchoolId) {
+      const home = all.find((s) => s.id === homeSchoolId);
+      if (home) auto.add(home.region);
+    }
+    if (auto.size === 0) return;
+    setExpandedRegions((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const r of auto) {
+        if (!next.has(r)) {
+          next.add(r);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [favoriteIds, homeSchoolId, all]);
+
+  const toggleRegion = useCallback((region: string) => {
+    setExpandedRegions((prev) => {
+      const next = new Set(prev);
+      if (next.has(region)) next.delete(region);
+      else next.add(region);
+      return next;
+    });
+  }, []);
+
+  // 칩 클릭: 해당 자치구 expand + 본문 스크롤.
+  // 검색 중에도 칩 클릭하면 검색 비활성화 (자치구로 진입 의도).
+  const jumpToRegion = useCallback((region: string) => {
+    setQuery('');
+    setExpandedRegions((prev) => {
+      if (prev.has(region)) return prev;
+      const next = new Set(prev);
+      next.add(region);
+      return next;
+    });
+    // expand 가 반영된 다음 frame 에 스크롤 (DOM 마운트 후)
+    requestAnimationFrame(() => {
+      const el = document.getElementById(regionAnchorId(region));
+      if (el && scrollRef.current) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }, []);
+
   return (
     <>
       <button
@@ -222,10 +295,25 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
                     )}
                   </div>
                 </div>
+                {/* 자치구 점프 칩 — 가로 스크롤. 첫 진입 시 자기 자치구로 한 번에 점프. */}
+                <div className="overflow-x-auto px-5 pb-3 -mx-5 mx-auto max-w-[calc(480px+2.5rem)]">
+                  <div className="flex gap-2 flex-nowrap px-5">
+                    {regions.map((region) => (
+                      <button
+                        key={region}
+                        type="button"
+                        onClick={() => jumpToRegion(region)}
+                        className="shrink-0 font-['Gaegu'] text-sm font-bold px-3 py-1.5 rounded-full bg-amber-100 border-2 border-amber-200 text-stone-700 hover:bg-amber-200 hover:border-orange-300 transition-colors whitespace-nowrap"
+                      >
+                        {shortRegionLabel(region)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* 본문 — 자연 스크롤. 검색 중엔 단일 결과 리스트, 아니면 즐겨찾기 + region 그룹. */}
-              <div className="flex-1 overflow-y-auto">
+              <div ref={scrollRef} className="flex-1 overflow-y-auto">
                 <div className="max-w-[480px] mx-auto px-5 py-4 pb-10">
                   {isSearching ? (
                     <section>
@@ -285,31 +373,51 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
                         )}
                       </section>
 
-                      {/* 전체 학교 — region 별 그룹 */}
-                      {groupedByRegion.map(([region, schools]) => (
-                        <section key={region} className="mb-5">
-                          <h3 className="font-['Gaegu'] text-sm font-bold text-stone-600 mb-2">
-                            {region}
-                            <span className="ml-1.5 text-xs text-stone-400 font-normal">
-                              ({schools.length})
-                            </span>
-                          </h3>
-                          <ul className="flex flex-col gap-2">
-                            {schools.map((school) => (
-                              <SchoolRow
-                                key={school.id}
-                                school={school}
-                                active={school.id === currentSchoolId}
-                                favorite={favoriteIds.includes(school.id)}
-                                home={school.id === homeSchoolId}
-                                onPick={() => handlePick(school.id)}
-                                onToggleFav={() => toggleFavorite(school.id)}
-                                onToggleHome={() => toggleHomeSchool(school.id)}
-                              />
-                            ))}
-                          </ul>
-                        </section>
-                      ))}
+                      {/* 전체 학교 — region 별 그룹. 685교 시점부터 기본 접힘.
+                          헤더 button 으로 토글, 칩 줄에서 jumpToRegion 호출 시 자동 펼침. */}
+                      {groupedByRegion.map(([region, schools]) => {
+                        const expanded = expandedRegions.has(region);
+                        return (
+                          <section
+                            key={region}
+                            id={regionAnchorId(region)}
+                            className="mb-3 scroll-mt-4"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleRegion(region)}
+                              aria-expanded={expanded}
+                              className="w-full flex items-center justify-between font-['Gaegu'] text-base font-bold text-stone-700 px-3 py-2 rounded-xl bg-amber-100 border-2 border-amber-200 hover:bg-amber-200 transition-colors"
+                            >
+                              <span>
+                                <span className="mr-1.5 text-stone-500">
+                                  {expanded ? '▾' : '▸'}
+                                </span>
+                                {region}
+                              </span>
+                              <span className="text-xs text-stone-500 font-normal">
+                                {schools.length}교
+                              </span>
+                            </button>
+                            {expanded && (
+                              <ul className="flex flex-col gap-2 mt-2">
+                                {schools.map((school) => (
+                                  <SchoolRow
+                                    key={school.id}
+                                    school={school}
+                                    active={school.id === currentSchoolId}
+                                    favorite={favoriteIds.includes(school.id)}
+                                    home={school.id === homeSchoolId}
+                                    onPick={() => handlePick(school.id)}
+                                    onToggleFav={() => toggleFavorite(school.id)}
+                                    onToggleHome={() => toggleHomeSchool(school.id)}
+                                  />
+                                ))}
+                              </ul>
+                            )}
+                          </section>
+                        );
+                      })}
                     </>
                   )}
                 </div>
