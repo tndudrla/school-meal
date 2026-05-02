@@ -2764,4 +2764,10 @@ Phase D 마지막 자치구. 20교 sen.es.kr + 1교 (경복초) host kbes.kr →
 
 Phase E 첫 자치구. 모두 sen.es.kr (경희·은석 사립 포함). 삼육초 host seoul36.sen.es.kr.
 
+---
+
+## Stage 14-23 — 서울 중랑구 24교 (2026-05-03)
+
+Phase E 두 번째 자치구. 23교 sen.es.kr + 1교 (금성초) host kumsung.net → scrape 생략.
+
 
