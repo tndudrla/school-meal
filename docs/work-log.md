@@ -2540,3 +2540,60 @@ sen-es 라벨 다양성 흡수.
 - Phase A 6 stages 끝나면 (~286교) main 머지 검토
 
 
+## Stage 14-4 — 서울 강남구 34교 (2026-05-02)
+
+### 발단
+
+Phase A 세 번째 자치구. 모두 sen.es.kr, 사립 0교, id 충돌 없음 (노트북
+사전 분석 결과). 작명 규칙 = host subdomain 기반 + `seoul`/`s` prefix strip
+(예: seouldaegok→seoul_daegok, sdaedo→seoul_daedo, srng→seoul_samneung).
+
+수집서버PC Cursor Claude Code 가 시범 실행한 첫 stage — 노트북에서
+runbook (`docs/runbook-stage14-4-gangnam.md`) 받아 한 번에 등록.
+Stage 14-1-1 의 sen-es 라벨 다양성 처방이 정확히 의도대로 흡수 — host
+대소·하이픈·약칭이 섞여 있어도 코드 변경 0.
+
+### 변경
+
+| 파일 | 변경 |
+|---|---|
+| `src/lib/schools/seoul/gangnam.ts` | 신규 — 34교 |
+| `src/lib/schools/index.ts` | `GANGNAM_SCHOOLS` import + spread + 디렉터리 주석 |
+
+`schoolScraper`·`photoMirror`·`cron`·`photo API` 변경 0.
+
+### 강남구 34교 (host 다양성)
+
+id 와 host subdomain 다른 케이스 다수:
+- `seoul_daegok` → `seouldaegok.sen.es.kr`
+- `seoul_daedo` → `sdaedo.sen.es.kr`
+- `seoul_daejin` → `seouldaejin.sen.es.kr`
+- `seoul_doseong` → `seouldoseong.sen.es.kr`
+- `seoul_samneung` → `srng.sen.es.kr` (3글자 약칭)
+
+나머지 29교는 id == subdomain.
+
+### 검증 (4/28 + 4월 한 달)
+
+- 빌드 통과 (TypeScript 회귀 0)
+- dev probe 6건 모두 HTTP 200
+  - 회귀 3교 (chonggye, seoul_seocho, seoul_kwanak) 정상
+  - 신규 샘플 3교 (seoul_gaepo, seoul_daechi, seoul_eonbuk) origin photo 반환
+- status 자동 측정: 강남 31/34 (91.2%), 누적 167/176 (94.9%)
+- 회귀 변동 0: 서초 23/24, 동작 18/21, 관악 22/22 모두 동일
+
+### 효과
+
+| 누적 | 등록 |
+|---|---|
+| Stage 14-3 | 142교 |
+| **Stage 14-4** | **176교** (+34) |
+
+강남구 ⬜ 3교 (대청·봉은·율현) — 다음 cron 사이클 또는 사용자 확인 후 처리.
+
+### 후속
+
+- Stage 14-5+: 송파·강동·금천 (Phase A 잔여)
+- Phase A 끝나면 (~286교) main 머지 검토
+
+
