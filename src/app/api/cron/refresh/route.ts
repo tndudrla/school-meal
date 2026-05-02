@@ -98,14 +98,24 @@ export async function GET(request: NextRequest) {
     return result;
   };
 
-  // Pro 플랜 maxDuration 300초 한도 안에서 76교를 Promise.all 로 한 번에 처리.
-  // 학교당 다운로드 timeout 15초 + sharp/upload 가 동시 실행되어도 충분히 여유.
-  const perSchool = await Promise.all(listSchools().map(processSchool));
+  // 685교 시점 처방 (Stage 14-26, 2026-05-03):
+  // 학교당 직접 outbound (학교 root, 캘린더, AJAX) + Supabase upload 가 동시
+  // 685개로 폭주하면 학교 서버가 connection 거절 → 빈 weekMap → 미러 0건.
+  // chunk 단위 sequential 로 학교 서버 부담 분산. chunk 안은 Promise.all.
+  // 50교 × 14 batch ≈ 170초 (single 평균 9~12초 기준), 300초 한도 여유.
+  const allSchools = listSchools();
+  const CHUNK = 50;
+  const perSchool: Array<Awaited<ReturnType<typeof processSchool>>> = [];
+  for (let i = 0; i < allSchools.length; i += CHUNK) {
+    const batch = allSchools.slice(i, i + CHUNK);
+    const results = await Promise.all(batch.map(processSchool));
+    perSchool.push(...results);
+  }
 
   // 4. 슬라이딩 윈도우 cleanup (전 학교 공통, 키 있을 때만)
   const prune = mirrorOn ? await pruneOldPhotos(ymd) : { enabled: false, pruned: 0 };
 
-  // 진단 (2026-05-03 임시) — 685교 시점 미러 누락 원인 추적용. 다음 stage 에서 제거.
+  // 통계 로그 (정상 운영 가시성용 — 진단 이상으로 영구 보존)
   type MirrorStats = {
     no_mirror_field: number;
     disabled: number;
@@ -113,7 +123,6 @@ export async function GET(request: NextRequest) {
     uploaded_some: number;
     empty: number;
     total_photos_count: number;
-    zero_photos: string[];
   };
   const mirrorStats: MirrorStats = perSchool.reduce<MirrorStats>(
     (acc, r) => {
@@ -125,7 +134,6 @@ export async function GET(request: NextRequest) {
       else if ((m.uploaded ?? 0) > 0) acc.uploaded_some += 1;
       else acc.empty += 1;
       acc.total_photos_count += photos?.count ?? 0;
-      if ((photos?.count ?? 0) === 0) acc.zero_photos.push(String(r.schoolId));
       return acc;
     },
     {
@@ -135,10 +143,9 @@ export async function GET(request: NextRequest) {
       uploaded_some: 0,
       empty: 0,
       total_photos_count: 0,
-      zero_photos: [],
     }
   );
-  console.log('[cron-diag]', {
+  console.log('[cron]', {
     schools_total: perSchool.length,
     mirrorEnabled: mirrorOn,
     mirror_buckets: {
@@ -149,7 +156,6 @@ export async function GET(request: NextRequest) {
       empty: mirrorStats.empty,
     },
     total_photos_count: mirrorStats.total_photos_count,
-    zero_photos_sample: mirrorStats.zero_photos.slice(0, 10),
   });
 
   return NextResponse.json({
