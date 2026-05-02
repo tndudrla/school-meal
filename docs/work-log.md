@@ -2770,4 +2770,11 @@ Phase E 첫 자치구. 모두 sen.es.kr (경희·은석 사립 포함). 삼육�
 
 Phase E 두 번째 자치구. 23교 sen.es.kr + 1교 (금성초) host kumsung.net → scrape 생략.
 
+---
+
+## Stage 14-24 — 서울 성북구 29교 (2026-05-03)
+
+Phase E 세 번째 자치구. 모두 sen.es.kr (사립 광운·대광·매원·성신·우촌 5교 포함).
+동신/월곡/장월은 동음 학교 있어 `_sb` suffix.
+
 
