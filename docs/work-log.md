@@ -2744,4 +2744,11 @@ Phase D 두 번째 자치구. 모두 sen.es.kr. 사립 비율 높음 (상명대�
 Phase D 세 번째 자치구. 11교 sen.es.kr + 1교 (리라초) host=lila.es.kr → scrape 생략.
 동산초·숭의초 사립이지만 host sen.es.kr 라 등록.
 
+---
+
+## Stage 14-20 — 서울 성동구 21교 (2026-05-03)
+
+Phase D 네 번째 자치구. 20교 sen.es.kr + 1교 (한양초) host hye.or.kr → scrape 생략.
+id 충돌 회피 — 경일초·동명초는 동음 학교 있어 `_sd` suffix.
+
 
