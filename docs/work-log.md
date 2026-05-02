@@ -2678,4 +2678,13 @@ Phase B 여섯 번째 자치구. 모두 sen.es.kr. 서울 prefix 없는 사립 2
 (sbh→seoul_sinbanghak, wol→seoul_wolcheon, s-baegun→seoul_baegun,
 changdong-s→seoul_changdong).
 
+---
+
+## Stage 14-14 — 서울 마포구 22교 (2026-05-02)
+
+Phase C 첫 자치구. 모두 sen.es.kr. 홍익대학교사범대학부속초등학교 1교
+(서울 prefix 없는 사립, id `seoul_hongik`) 도 host sen.es.kr 라 sen-es scraper
+그대로 동작. id 충돌 회피 — 마포구 성산초는 `seoul_sangsan_mp` (host 기반 약칭
+ssc). host 약칭 (ssc→seoul_sangsan_mp, sseo→seoul_seongseo, sky→seoul_haneul).
+
 
