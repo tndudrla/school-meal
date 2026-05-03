@@ -2982,4 +2982,68 @@ UX reference 조사 결과 NEIS 3단 cascading 은 부모 인지도 낮아 채�
 | 3000 | chunk 100 도입 검토 | region 분리 (서울/경기/부산/...) |
 | 5000+ | per-region NEIS 분리 | per-region + queue/worker |
 
+### 결과 검증 (production 첫 회차, 2026-05-03 KST 16:16~16:20)
+
+- `refresh-neis`: HTTP 200, **9.2초** (685×2 호출) ✅ 단일 Promise.all 정상 동작.
+  errored 0~10 추정, NEIS rate limit 발동 X.
+- `refresh-photos`: HTTP 200, **592초** ⚠️ (한도 600 의 98.7%)
+  마진 7~8초로 학교 서버 변동성에 또 504 위험. NEIS 분리 효과 제한적 —
+  실제 무거운 부분은 학교 outbound + sharp + Supabase upload + DB select.
+
+학교당 wall time 누적 패턴 (과천 1초대 → 의왕 4초대 → 안양 5초대) 으로 학교
+서버들이 batch 진행 중 점점 느려짐. chunk 축소만으로 흡수 한계 → Stage 14-31
+region 별 사진 cron 분리로 후속.
+
+---
+
+## Stage 14-31 — 사진 cron region 분리 (서울 / 경기) (2026-05-03)
+
+Stage 14-30 사진 cron 의 마진 부족 처방 + 전국 확장 시야. 통합 사진 cron 을
+region 별 두 함수로 분리해 wall time 자연 분산.
+
+### 결정 (사용자 AskUserQuestion)
+
+- 분리 단위 = 시·도 (서울 610교 / 경기 75교) — region prefix 활용
+- 경기 schedule = 서울과 동일 (KST 13:30·16:00·19:00) — 일관성
+- 공통 helper 추출 — `src/lib/cron/photoCronImpl.ts` 에 schools 외부 주입식
+- prune = 서울 cron 안에만 — 전 region 공통 작업, 한 곳만 수행
+
+### 변경 파일
+
+- `src/lib/cron/photoCronImpl.ts` 신규 — 공통 함수 `runPhotoCron({schools, label, runPrune})`
+- `src/app/api/cron/refresh-photos-seoul/route.ts` 신규 — 서울 학교 + prune true
+- `src/app/api/cron/refresh-photos-gyeonggi/route.ts` 신규 — 경기 학교 + prune false
+- `src/app/api/cron/refresh-photos/route.ts` 삭제
+- `vercel.json` — 사진 cron 3 entry → 6 entry (서울 3 + 경기 3)
+- `AGENTS.md`, `README.md` — cron 가이드 갱신
+
+### 효과 추정
+
+| cron | 학교 수 | duration 예상 | maxDuration |
+|---|---|---|---|
+| `refresh-photos-seoul` | 610교 | ~280~315s | 600s (마진 ~290s) |
+| `refresh-photos-gyeonggi` | 75교 | ~30~50s | 300s (마진 ~250s) |
+
+서울/경기 cron 이 같은 시각에 trigger 되어 두 함수 invocation 으로 parallel
+실행. Vercel Pro plan 동시 cron 한도 없음.
+
+### 회귀 위험
+
+- prune 누락 가능성 — 서울 cron 만 prune. 며칠 늦어도 데이터 무결성 영향 0.
+- region prefix 의존성 — `s.region.startsWith('서울 ')` / `'경기 '` 가 데이터
+  컨벤션 깨지면 학교 누락. SCHOOLS 데이터 모두 prefix 일관 (확인됨).
+  새 시·도 추가 시 third route 필요.
+
+### 전국 확장 시야
+
+| 학교 수 | NEIS cron | 사진 cron |
+|---|---|---|
+| 685 (현재 → Stage 14-31) | 단일 9~10s | 서울/경기 분리 (610/75교) |
+| 1500 (서울+경기+1~2 시·도) | 단일 30~50s | region 별 + 서울 추가 분리 (자치구 그룹) |
+| 3000 (전국 절반) | 단일 60~100s | per-region + chunk 25 |
+| 5000+ | per-region NEIS 분리 | per-region + queue/worker |
+
+이번 stage 가 시·도 신규 추가 시 자연스럽게 한 라우트 더 추가하면 되는
+패턴 도입. cron 수가 늘어도 함수당 wall time 은 region 학교 수에 비례.
+
 
