@@ -26,8 +26,10 @@
 한 항목 등록으로 추가. 다른 파일은 건드리지 않는다.
 
 **학교 추가 후 반드시 cron 수동 실행** (Vercel Dashboard → Cron Jobs →
-region 에 맞는 라우트 Run): 서울 학교 → `refresh-photos-seoul`, 경기 학교 →
-`refresh-photos-gyeonggi`. 새 학교 미러 즉시 채우기 위함.
+region 에 맞는 라우트 Run): 서울 강남권 → `refresh-photos-seoul-1`,
+서울 강북권 → `refresh-photos-seoul-2`, 경기 → `refresh-photos-gyeonggi`.
+강남권/강북권 분류는 `src/lib/cron/seoulDistricts.ts`. 새 학교 미러 즉시
+채우기 위함.
 
 ## 기술 스택
 
@@ -72,22 +74,26 @@ CRON_SECRET=                                         # Vercel Cron 보호
 | `/api/feedback` | GET 목록 / POST 익명 등록 |
 | `/api/feedback/[id]/vote` | POST 추천 (fingerprint 중복 방지) |
 | `/api/cron/refresh-neis` | 모든 학교 NEIS 메뉴 워밍 (`CRON_SECRET` 보호) |
-| `/api/cron/refresh-photos-seoul` | 서울 학교 사진 미러 + sliding window prune (`CRON_SECRET` 보호) |
+| `/api/cron/refresh-photos-seoul-1` | 서울 강남권 11구 사진 미러 + sliding window prune (`CRON_SECRET` 보호) |
+| `/api/cron/refresh-photos-seoul-2` | 서울 강북권 14구 사진 미러 (`CRON_SECRET` 보호) |
 | `/api/cron/refresh-photos-gyeonggi` | 경기 학교 사진 미러 (`CRON_SECRET` 보호) |
 
 ## Vercel Cron
 
-`vercel.json` 에 region 별 분리 예약 (Stage 14-31):
+`vercel.json` 에 region·그룹 별 분리 예약 (Stage 14-32):
 
 | 라우트 | KST | UTC | 목적 |
 |---|---|---|---|
 | `refresh-neis` | 08:00 | 23:00 (전일) | 아침 NEIS 메뉴 확정 시점 |
 | `refresh-neis` | 14:30 | 05:30 | 점심 시점 메뉴 변경 흡수 |
 | `refresh-neis` | 17:00 | 08:00 | 하교 시점 메뉴 신선화 |
-| `refresh-photos-seoul` | 13:30 | 04:30 | 서울: 영양교사 1차 업로드 + 점심 트래픽 직전 |
-| `refresh-photos-seoul` | 16:00 | 07:00 | 서울: 메인 업로드 시간대 통과 후 보충 |
-| `refresh-photos-seoul` | 19:00 | 10:00 | 서울: 늦은 업로드 흡수 + 저녁 트래픽 직전 |
-| `refresh-photos-gyeonggi` | 13:30 | 04:30 | 경기: 같은 schedule (parallel invocation) |
+| `refresh-photos-seoul-1` | 13:30 | 04:30 | 강남권: 영양교사 1차 업로드 + 점심 트래픽 직전 + prune |
+| `refresh-photos-seoul-1` | 16:00 | 07:00 | 강남권: 메인 업로드 시간대 통과 후 보충 + prune |
+| `refresh-photos-seoul-1` | 19:00 | 10:00 | 강남권: 늦은 업로드 흡수 + 저녁 트래픽 직전 + prune |
+| `refresh-photos-seoul-2` | 13:30 | 04:30 | 강북권: Seoul-1 과 같은 schedule (parallel) |
+| `refresh-photos-seoul-2` | 16:00 | 07:00 | 강북권 |
+| `refresh-photos-seoul-2` | 19:00 | 10:00 | 강북권 |
+| `refresh-photos-gyeonggi` | 13:30 | 04:30 | 경기 |
 | `refresh-photos-gyeonggi` | 16:00 | 07:00 | 경기 |
 | `refresh-photos-gyeonggi` | 19:00 | 10:00 | 경기 |
 

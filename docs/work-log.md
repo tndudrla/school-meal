@@ -3046,4 +3046,72 @@ region 별 두 함수로 분리해 wall time 자연 분산.
 이번 stage 가 시·도 신규 추가 시 자연스럽게 한 라우트 더 추가하면 되는
 패턴 도입. cron 수가 늘어도 함수당 wall time 은 region 학교 수에 비례.
 
+### 결과 검증 (production 첫 회차, 2026-05-03 KST 19:00)
+
+- `refresh-photos-gyeonggi`: HTTP 200, **57.5초** ✅ (75교)
+- `refresh-photos-seoul`: HTTP **504**, **600초 정확히 한도 초과** ❌ (610교)
+
+서울 cron 504 — sen.es.kr 서브도메인 모두 같은 IP 인프라 공유로 chunk 30
+동시 호출이 사실상 한 IP 로 쏠림. logs 의 학교당 wall time 누적 증가 (1~3s →
+후반 4~5s) + `seoulseoil.sen.es.kr → timeout 10012ms` 패턴 확인.
+
+처방 후속 = Stage 14-32 (서울 강남권/강북권 분리).
+
+---
+
+## Stage 14-32 — 서울 사진 cron 강남권 / 강북권 분리 (2026-05-03)
+
+Stage 14-31 통합 서울 cron 의 504 처방. Stage 14-31 의 helper
+(`runPhotoCron`) 를 그대로 재사용해 서울 라우트만 두 그룹 분할.
+
+### 결정 (사용자 AskUserQuestion)
+
+- 분할 = 강남권 (한강 이남 11구) / 강북권 (한강 이북 14구). 학교 수 304 / 306
+  거의 완벽한 균형. 1500교 시점에도 그대로 확장 가능 (자연스런 지리 분할).
+- schedule = 둘 다 동일 시각 (KST 13:30·16:00·19:00). 세 사진 cron parallel.
+- prune = Seoul-1 (강남권) cron 안에만.
+
+### 변경 파일
+
+- `src/lib/cron/seoulDistricts.ts` 신규 — `SEOUL_GROUP_1`, `SEOUL_GROUP_2`
+  상수 + `isSeoulGroup1/2` 헬퍼. 새 자치구 추가 시 list 갱신 필수.
+- `src/app/api/cron/refresh-photos-seoul-1/route.ts` 신규 — 강남권 + prune
+- `src/app/api/cron/refresh-photos-seoul-2/route.ts` 신규 — 강북권 + prune skip
+- `src/app/api/cron/refresh-photos-seoul/route.ts` 삭제
+- `vercel.json` — 9 entry → 12 entry (Seoul-1 / Seoul-2 / Gyeonggi 각 3)
+- `AGENTS.md`, `README.md` — cron 가이드 갱신
+
+`src/lib/cron/photoCronImpl.ts` (Stage 14-31 helper) 변경 X — 외부 주입식
+설계가 그대로 재사용 가능하다는 게 검증됨.
+
+### 효과 추정
+
+| cron | 학교 수 | duration 예상 | maxDuration |
+|---|---|---|---|
+| `refresh-photos-seoul-1` | 304교 | ~145~165s | 300s (마진 ~135s) |
+| `refresh-photos-seoul-2` | 306교 | ~145~165s | 300s (마진 ~135s) |
+| `refresh-photos-gyeonggi` | 75교 | ~30~50s | 300s (마진 ~250s) |
+
+세 cron 모두 300s 한도 안 안전 진입. Stage 14-31 통합 600s 한도 초과에서
+50% 절감. 1500교 시점에도 그룹별 ~600교까지 견딜 마진.
+
+### 회귀 위험
+
+- 자치구 list 누락 — `seoulDistricts.ts` 두 list 합이 25 가 아니면 그 자치구
+  학교가 어느 cron 에도 안 들어감. 새 자치구 등록 시 list 갱신 매뉴얼 (AGENTS.md).
+- prune 누락 — Seoul-1 만 수행. 매번 실패하기 어렵고 며칠 늦어도 무결성 영향 0.
+- sen.es.kr 동시 부하 — 두 그룹 같은 시각 trigger 로 304+306=610 동시 fetch.
+  Stage 14-31 통합 cron 도 동일 부하라 회귀 X.
+
+### 전국 확장 시야
+
+| 학교 수 | NEIS cron | 사진 cron |
+|---|---|---|
+| 685 (현재 → Stage 14-32) | 단일 9~10s | 서울-1/서울-2/경기 (304/306/75) |
+| 1500 (서울+경기+1~2 시·도) | 단일 30~50s | 서울 그룹 4분할 (~150교씩) + 시·도별 |
+| 3000 (전국 절반) | 단일 60~100s | per-region (시·도별) + 시·도 안 그룹 분할 |
+| 5000+ | per-region NEIS 분리 | per-region + queue/worker |
+
+이번 stage 가 시·도 안 그룹 분할 패턴 도입. 1500교 시점 자연 추가 분할.
+
 
