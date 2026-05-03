@@ -2887,4 +2887,37 @@ Stage 14-27 첫 회차 588s/600 한도 = 98% 사용. 학교 서버 응답 변동
 다음 cron 회차 (KST 14:30 / 17:00) 결과로 효과 검증 — duration 이 ~520~540s 범위에
 들어오면 마진 충분히 확보된 것.
 
+---
+
+## Stage 14-29 — SchoolSwitcher 시·도 탭 + 초성 검색 + 가나다순 (2026-05-03)
+
+685교 시점에 모달의 자치구 칩이 29개 한 줄에 섞여 있어 (서울 25 + 경기 4) 사용자가
+자기 자치구가 서울인지 경기인지 즉시 인지 어려움. 모바일 한글 검색 비용도 높음.
+
+처방 (사용자 결정 — 탭 + 초성 + 가나다순 + 시·도 카운트, 최근 선택은 보류):
+- **시·도 탭** (서울 610교 / 경기 75교) — 한 번에 한 시·도만 칩/본문에 노출.
+  탭 라벨에 학교 수 카운트.
+- **기본 활성 탭** = currentSchoolId 의 region 에서 province 추출. 없으면 '서울'.
+- **자치구 가나다순** (province 안에서) — 강남·강동·강북... 자기 자치구 빨리 찾기.
+- **한글 초성 검색** — 쿼리가 모두 한글 자음이면 toChosung 매칭. 'ㅈㅇㅊ' → '중앙초'.
+  모바일 타이핑 비용 1/3.
+- **검색 중엔 탭/칩 흐림** + 검색 결과는 cross-province (시·도 무시).
+
+변경: `src/components/SchoolSwitcher.tsx` 단일 파일.
+- helper 추가: `provinceOf`, `CHO`, `toChosung`, `isAllChosung`
+- state 추가: `activeProvince` (lazy init)
+- memo 갱신: `groupedByProvince`, `provinceCounts`, `provinces`, `regionsForActive`
+  (기존 `groupedByRegion`, `regions` 갈음)
+- 검색 useMemo 에 초성 분기 추가
+- 탭 UI + 칩 줄 active province 필터 + 본문 active province 필터
+
+새 의존성 0. 데이터 layer 무관. region 문자열 ("서울 강남" / "경기 과천") prefix
+parsing 만으로 시·도 추출. region 형식이 바뀌면 이 helper 도 같이 갱신해야 함.
+
+UX reference 조사 결과 NEIS 3단 cascading 은 부모 인지도 낮아 채택 안 함.
+시·도 탭 + 자치구 칩 + 자유 검색 (초성 포함) 의 3단 조합이 한국 사용자 표준.
+
+회귀 위험: 즐겨찾기/홈 학교 / 검색·collapse / 공유 링크 모두 그대로. 빌드 통과.
+사용자 브라우저 검증 필요 (탭 전환·초성 검색·가나다순 확인).
+
 

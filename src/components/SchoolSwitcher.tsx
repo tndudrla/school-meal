@@ -18,6 +18,37 @@ function regionAnchorId(region: string): string {
   return `schoolswitcher-region-${region.replace(/\s+/g, '-')}`;
 }
 
+// "서울 강남" → "서울". 시·도 탭 분리용. region 형식이 "시도 자치구" 일관 (확인:
+// src/lib/schools/seoul/*, gyeonggi.ts).
+function provinceOf(region: string): string {
+  const idx = region.indexOf(' ');
+  return idx > 0 ? region.slice(0, idx) : region;
+}
+
+// 한글 음절 → 초성 1글자. 음절 외 문자는 그대로 통과.
+// 모바일 검색에서 'ㅈㅇㅊ' → '중앙초' 매칭으로 타이핑 비용 절감.
+const CHO = [
+  'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ',
+  'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ',
+];
+function toChosung(s: string): string {
+  let out = '';
+  for (const ch of s) {
+    const code = ch.charCodeAt(0);
+    if (code >= 0xac00 && code <= 0xd7a3) {
+      out += CHO[Math.floor((code - 0xac00) / 588)];
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+// 쿼리가 모두 한글 자음 (초성) 인지. 그러면 toChosung 매칭으로 분기.
+function isAllChosung(s: string): boolean {
+  return /^[ㄱ-ㅎ]+$/.test(s);
+}
+
 interface Props {
   /** 현재 선택된 학교 id */
   currentSchoolId: string;
@@ -44,6 +75,14 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
   const [expandedRegions, setExpandedRegions] = useState<Set<string>>(
     () => new Set()
   );
+  // 활성 시·도 탭. 초기값은 currentSchoolId 의 region 에서 province 추출.
+  // 그게 없으면 '서울' (학교 수 다수). homeSchoolId 는 mount 후 useEffect 에서
+  // 채워지므로 여기선 currentSchoolId 만 신호로 사용.
+  const [activeProvince, setActiveProvince] = useState<string>(() => {
+    const initial = listSchools().find((s) => s.id === currentSchoolId);
+    if (initial) return provinceOf(initial.region);
+    return '서울';
+  });
   // 모달 본문 스크롤 컨테이너 — 칩 jumpTo 시 scrollIntoView 대상.
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -147,9 +186,21 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
 
   // 검색 결과 — 학교명·region·별칭(접미사 떼낸 짧은 이름) 어느 쪽이든 매치.
   // 예: '양정' → '군포양정초등학교' 매치. '의왕부곡' / '부곡' 둘 다 매치.
+  //
+  // 초성 검색 (Stage 14-29, 2026-05-03): 쿼리가 모두 한글 자음이면
+  // toChosung 결과로 매칭. 'ㅈㅇㅊ' → '중앙초'. 모바일 타이핑 비용 1/3.
   const searchResults = useMemo(() => {
     if (!isSearching) return [];
+    const queryIsChosung = isAllChosung(normalizedQuery);
     return all.filter((s) => {
+      if (queryIsChosung) {
+        // 학교명·region 의 초성 변환 결과 안에 쿼리가 포함되는지
+        const nameCho = toChosung(s.name);
+        const regionCho = toChosung(s.region);
+        return (
+          nameCho.includes(normalizedQuery) || regionCho.includes(normalizedQuery)
+        );
+      }
       const haystacks = [
         s.name,
         s.region,
@@ -163,19 +214,54 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
     });
   }, [all, normalizedQuery, isSearching]);
 
-  // region 별 그룹핑 (학교 수 늘어나도 자연 확장)
-  const groupedByRegion = useMemo(() => {
-    const map = new Map<string, SchoolConfig[]>();
+  // region 별 그룹핑 (학교 수 늘어나도 자연 확장).
+  // province → [region, schools[]] 두 단계 Map. 자치구는 province 안에서 가나다순.
+  const groupedByProvince = useMemo(() => {
+    const m = new Map<string, Array<[string, SchoolConfig[]]>>();
     for (const school of all) {
-      const list = map.get(school.region) ?? [];
-      list.push(school);
-      map.set(school.region, list);
+      const p = provinceOf(school.region);
+      if (!m.has(p)) m.set(p, []);
+      const provinceList = m.get(p)!;
+      let entry = provinceList.find(([r]) => r === school.region);
+      if (!entry) {
+        entry = [school.region, []];
+        provinceList.push(entry);
+      }
+      entry[1].push(school);
     }
-    return Array.from(map.entries());
+    // province 안 자치구 가나다순 — '강남' < '강동' < '강북' 처럼
+    // 자기 자치구 빨리 찾기 좋게.
+    for (const provinceList of m.values()) {
+      provinceList.sort(([a], [b]) =>
+        shortRegionLabel(a).localeCompare(shortRegionLabel(b), 'ko')
+      );
+    }
+    return m;
   }, [all]);
 
-  // 칩 줄에 노출할 region 순서 — groupedByRegion 와 동일 순서 (SCHOOLS spread 순)
-  const regions = useMemo(() => groupedByRegion.map(([r]) => r), [groupedByRegion]);
+  // 시·도별 학교 수 (탭 라벨 카운트용)
+  const provinceCounts = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const s of all) {
+      const p = provinceOf(s.region);
+      c.set(p, (c.get(p) ?? 0) + 1);
+    }
+    return c;
+  }, [all]);
+
+  // 탭 순서 — 학교 수 desc 자연 순. 서울(610) 이 항상 먼저, 경기(75) 다음.
+  // 다른 시·도 추가 시 자동 정렬됨.
+  const provinces = useMemo(() => {
+    return Array.from(provinceCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([p]) => p);
+  }, [provinceCounts]);
+
+  // 활성 시·도 안 칩에 노출할 region 순서 (가나다순 적용된 그 순서)
+  const regionsForActive = useMemo(() => {
+    const list = groupedByProvince.get(activeProvince) ?? [];
+    return list.map(([r]) => r);
+  }, [groupedByProvince, activeProvince]);
 
   // 즐겨찾기 / 홈 학교 자치구 자동 expand. 사용자가 수동으로 닫지 않는 한 유지.
   // 합집합 방식 — auto 에 빠진 region 도 사용자가 expand 했으면 그대로 둠.
@@ -295,10 +381,46 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
                     )}
                   </div>
                 </div>
-                {/* 자치구 점프 칩 — 가로 스크롤. 첫 진입 시 자기 자치구로 한 번에 점프. */}
-                <div className="overflow-x-auto px-5 pb-3 -mx-5 mx-auto max-w-[calc(480px+2.5rem)]">
+                {/* 시·도 탭 — 서울 / 경기. 검색 중엔 흐림 (cross-province 검색 의도). */}
+                <div
+                  className={`px-5 pb-2 max-w-[480px] mx-auto w-full transition-opacity ${
+                    isSearching ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  <div
+                    role="tablist"
+                    aria-label="시·도"
+                    className="flex gap-1 bg-amber-100 border-2 border-amber-200 rounded-full p-1"
+                  >
+                    {provinces.map((p) => {
+                      const active = activeProvince === p;
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setActiveProvince(p)}
+                          className={`flex-1 py-2 rounded-full text-sm font-bold font-['Gaegu'] transition-colors ${
+                            active
+                              ? 'bg-orange-500 text-white shadow'
+                              : 'text-stone-600 hover:bg-amber-200'
+                          }`}
+                        >
+                          {p} {provinceCounts.get(p) ?? 0}교
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* 자치구 점프 칩 — 가로 스크롤. 활성 시·도 자치구만 노출, 가나다순. */}
+                <div
+                  className={`overflow-x-auto px-5 pb-3 -mx-5 mx-auto max-w-[calc(480px+2.5rem)] transition-opacity ${
+                    isSearching ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
                   <div className="flex gap-2 flex-nowrap px-5">
-                    {regions.map((region) => (
+                    {regionsForActive.map((region) => (
                       <button
                         key={region}
                         type="button"
@@ -373,9 +495,9 @@ export default function SchoolSwitcher({ currentSchoolId, onSelect }: Props) {
                         )}
                       </section>
 
-                      {/* 전체 학교 — region 별 그룹. 685교 시점부터 기본 접힘.
+                      {/* 전체 학교 — 활성 시·도 region 그룹. 가나다순 + collapse.
                           헤더 button 으로 토글, 칩 줄에서 jumpToRegion 호출 시 자동 펼침. */}
-                      {groupedByRegion.map(([region, schools]) => {
+                      {(groupedByProvince.get(activeProvince) ?? []).map(([region, schools]) => {
                         const expanded = expandedRegions.has(region);
                         return (
                           <section
