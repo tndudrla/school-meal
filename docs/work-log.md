@@ -3172,4 +3172,111 @@ vercel.json schedule 모두 변경 X.
 - 옵션 C: 자치구 4분할 — 1500교 시점 처방 (지금은 과함)
 - chunk 30 → 25 — batch wall time 단축
 
+### 결과 검증 (production 첫 회차, 2026-05-03 KST 19:38)
+
+- `refresh-photos-seoul-1`: HTTP **200**, **341초** ✅ (304교, 마진 459s)
+- `refresh-photos-seoul-2`: HTTP **200**, **385초** ✅ (306교, 마진 415s)
+- memory ~540MB / 2048MB 여유
+
+처방 효과 확인 — Pro plan 800s 한도가 정답. 600s 였으면 seoul-2 (385s) 가
+변동성 큰 날 504 위험. 학교당 wall 이 예상 13~15s 가 아닌 4~5s+sub-page POST
+누적까지 더해 batch 평균 ~30s 수준이 sen.es.kr 동시 60 부담의 실제 영향.
+
+Stage 14-33 마무리. sen.es.kr 동시 60 부담은 그대로 남았으나 800s 마진으로
+운영 안정. 1500교 도달 전까지 schedule 시차 (B) / 자치구 4분할 (C) 추가
+처방 보류.
+
+---
+
+## 전국 확장 Lessons Learned (Stage 14-26 ~ 14-33 종합, 2026-05-03)
+
+685교 2일 만에 1300교+ (경기) → 수천 교 전국 확장 시야에서 **같은 실수
+반복하지 않기 위한 운영·설계 원칙 정리**. 다음 region 추가 작업자가 본 섹션
+먼저 읽고 시작.
+
+### 504 사고 시간선
+
+| Stage | 처방 | 결과 |
+|---|---|---|
+| 14-26 | 통합 cron 단일 함수, chunk 25 + 두 주 합치기 | 504 (300s 한도) |
+| 14-27 | 통합 cron, chunk 35 + maxDuration 600 + fetchWeekPhotos 중복 제거 | 200 (588s) — **빠듯** |
+| 14-28 | chunk 35 → 30 (마진 보강) | 504 (600s 한도) — chunk 축소만으로 한계 |
+| 14-30 | NEIS / 사진 cron 분리 | NEIS 9.2s ✅, 사진 592s ⚠️ (한도 빠듯) |
+| 14-31 | 사진 cron 서울/경기 분리 | 경기 57s ✅, 서울 504 (sen.es.kr 부담) |
+| 14-32 | 서울 강남권/강북권 분리, maxDuration 300 | 둘 다 504 (300s 한도) — 동시 trigger 부담 미반영 |
+| 14-33 | maxDuration 300 → 800 | 둘 다 200 (341s/385s) ✅ — **현재 안정** |
+
+### 핵심 교훈
+
+1. **chunk 축소만으로 wall time 절감 안 됨** — chunk 작아져도 batch 수 늘어
+   학교 서버 누적 부담은 그대로. 14-28 (35→30) 효과 미미했던 이유.
+2. **NEIS / 사진 분리는 NEIS 시간만 줄임** — NEIS 자체가 빠른 부분이라 사진
+   미러 wall time 영향 미미. 14-30 (592s) 가 14-28 (600s) 와 거의 동일.
+3. **단일 도메인 group (sen.es.kr) 동시 부담이 실제 병목** — 학교들이 같은
+   도메인 인프라를 공유하면 chunk 안 동시 호출이 누적 throttle. 학교당 wall
+   2~3배 늘어남.
+4. **두 cron 동시 trigger 가 단일 도메인 부담을 두 배로 만듦** — 14-32 의
+   504 원인. region 분리해도 같은 도메인이면 부담 합산.
+5. **maxDuration 은 보수적으로 한도 끝까지 (800)** — 600 이 "충분해 보여도"
+   학교 서버 변동성 + 동시 부담 합쳐지면 빠듯. Pro 한도 800 풀 활용 권장.
+6. **gyeonggi 가 항상 빠른 이유 = 도메인 분산** — `goeay.kr` / `goegu.kr` 둘
+   로 나눠져 있어 동시 부담 자연 분산. sen.es.kr 같은 단일 도메인 region 이
+   실제 위험.
+
+### 새 region/그룹 추가 시 체크리스트
+
+새 시·도 (예: 부산 1000교) 또는 서울 추가 분할 작업 전 확인:
+
+- [ ] **단일 도메인 (시·도교육청) 인지 확인**: 부산 = `pen.go.kr`?
+  단일 도메인이면 sen.es.kr 패턴 — 처음부터 그룹 분할 (학교 수 ~300/그룹) 권장.
+  도메인 분산이면 단일 cron 으로 시작 가능.
+- [ ] **학교 수 / chunk 안 wall time 추정**: chunk 30 sequential 기준
+  학교당 5초 + 누적 3~5초 = batch ~30s. batch 수 = 학교 / 30. 총 wall =
+  batch 수 × ~30s. **maxDuration 800 안에 들어오는지 확인**.
+- [ ] **동시 trigger 다른 region cron 과 도메인 충돌 없는지**: 같은 시각
+  schedule 한 다른 cron 과 같은 도메인 부담 합산되는지 점검. 같은 도메인이면
+  schedule 5분 시차 또는 그룹별 시각 분산.
+- [ ] **maxDuration = 800** (Pro 한도 끝). 보수적으로 600 등 시작하면 변동성
+  흡수 마진 부족.
+- [ ] **chunk 30 유지**: chunk 축소 (25/20) 는 batch 수 늘어 반대 효과.
+  chunk 늘리기 (40/50) 는 학교 서버 부담 ↑.
+- [ ] **prune 위치 = 한 cron 만**: 전 region 공통 작업이라 중복 X. 보통 첫
+  그룹 또는 가장 자주 도는 cron.
+- [ ] **vercel.json schedule entry 추가 후 Dashboard 동기화 확인**: stale
+  발생 시 빈 commit (`git commit --allow-empty -m "chore: vercel cron sync"`)
+  으로 재배포 trigger.
+- [ ] **`runPhotoCron` 헬퍼 그대로 재사용**: schools / label / runPrune 만
+  외부 주입. 새 region 마다 helper 복사 X — Stage 14-31 에서 정착된 패턴.
+
+### 도메인 위험도 표 (참고)
+
+| region | 도메인 | 동시 부담 위험 | 권장 시작 학교 수 |
+|---|---|---|---|
+| 서울 | `*.sen.es.kr` 단일 | **높음** | ≤300/그룹 |
+| 경기 | `*.goeay.kr` + `*.goegu.kr` 두 갈래 | 중간 | ≤500/그룹 |
+| 인천 | `*.ice.go.kr` (예상) | **높음** | ≤300/그룹 |
+| 부산 | `*.pen.go.kr` (예상) | **높음** | ≤300/그룹 |
+| 다른 시·도 | 미확인 | 시·도별 도메인 패턴 사전 조사 필수 | - |
+
+(시·도별 도메인 패턴은 등록 작업 시 첫 학교의 host 로 확인. 같은 prefix 면
+단일 인프라 추정.)
+
+### 안 할 것 (반복 실수 목록)
+
+- ❌ **chunk 축소만으로 wall time 해결 시도** — Stage 14-28 교훈
+- ❌ **maxDuration 보수적 (300, 600) 으로 시작** — 처음부터 800 권장
+- ❌ **두 cron 동시 schedule 의 도메인 부담 합산 무시** — Stage 14-32 교훈
+- ❌ **region 분리 = 자동 wall time 절감** 으로 가정 — 단일 도메인이면
+  분할 + 동시 = 합산 부담
+- ❌ **NEIS / 사진 분리만으로 사진 cron wall 단축 기대** — NEIS 자체가 빠름
+
+### 다음 후보 처방 (스택)
+
+현재 (14-33) 마진 충분하지만 1500교/3000교 시점 후속 처방 후보:
+
+1. **schedule 시차 (B)** — sen.es.kr 동시 부담 60 → 30 분산. wall time 자체 단축
+2. **자치구 4분할 (C)** — 서울 그룹별 ~150교. batch 수 절반. 1500교 시점 자연
+3. **chunk 30 → 25** — 학교 서버 동시 connection 30→25 로 친절도 ↑
+4. **per-school endpoint + queue/worker** — 5000교+ 시점 architecture 변경
+
 
