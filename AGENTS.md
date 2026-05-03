@@ -25,10 +25,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 학교(다른 시도 도메인) 는 `scrape` 를 생략하면 메뉴는 보이고 사진은 안 보인다.
 
 **학교 추가 후 반드시 cron 수동 실행** (Vercel Dashboard → Project →
-Settings → Cron Jobs → `/api/cron/refresh` 의 `Run` 버튼). 새 학교의 미러를
-즉시 채워, 사용자가 진입했을 때 학교 홈페이지 직접 호출이 일어나지 않게 함.
-규칙 깜빡하면 cron 다음 회차(최대 8시간) 까지 그 학교만 학교 사이트에 직접
+Settings → Cron Jobs → `/api/cron/refresh-photos` 의 `Run` 버튼).
+새 학교의 미러를 즉시 채워, 사용자가 진입했을 때 학교 홈페이지 직접 호출이
+일어나지 않게 함. NEIS 메뉴만 신선화하면 되는 경우는 `/api/cron/refresh-neis`
+Run.
+
+규칙 깜빡하면 cron 다음 회차(최대 5시간) 까지 그 학교만 학교 사이트에 직접
 요청 가는 구간이 생긴다. 트래픽 폭증 시 학교 IP 차단 트리거.
+
+> Stage 14-30 (2026-05-03) 부터 cron 이 두 라우트로 분리됐다 — NEIS 워밍은
+> `refresh-neis` (KST 08·14:30·17), 학교 사이트 사진 + 미러는 `refresh-photos`
+> (KST 13:30·16·19). 옛 `/api/cron/refresh` 는 제거됨.
 
 ### 사진은 미러 우선, 학교 직접은 폴백
 
@@ -40,15 +47,21 @@ Settings → Cron Jobs → `/api/cron/refresh` 의 `Run` 버튼). 새 학교의 
 ### NEIS 호출은 캐시로 흡수
 
 `fetch(neis, { next: { revalidate: 3600 } })` 가 박혀 있어 같은 (학교, ymd) 는
-1시간 동안 캐시값. 응답에 `Cache-Control: s-maxage=3600` 도 같이 보냄. cron 이
-하루 3회(KST 08:00·14:30·17:00) 워밍하므로 NEIS 실호출은 학교·날짜당 하루 2~4회
-수준. 14:30 은 영양교사 사진 업로드 골든타임(점심 후 1~2시) 직후 미러용.
+1시간 동안 캐시값. 응답에 `Cache-Control: s-maxage=3600` 도 같이 보냄.
+`refresh-neis` cron 이 하루 3회(KST 08:00·14:30·17:00) 워밍하므로 NEIS 실호출은
+학교·날짜당 하루 2~4회 수준.
+
+### 사진 cron schedule
+
+`refresh-photos` 는 KST 13:30 / 16:00 / 19:00 — 영양교사 점심 후 1차 업로드
+(13:30) → 메인 업로드 후 (16:00) → 늦은 업로드 보충 + 저녁 트래픽 직전 (19:00).
+사용자 진입 시점 (점심·저녁) 직전마다 미러 hit 률 최대화.
 
 ### 미러 파이프라인의 운영 제약
 
-- Vercel Pro 800s 함수 한도 — 76교 Promise.all 한 번에 충분히 끝남
+- Vercel Pro 800s 함수 한도 — `refresh-photos` maxDuration 600 (chunk 30 sequential)
 - sharp 로 1280px / JPEG q=80 으로 리사이즈 (5MB → ~150KB, 97% 절감)
-- 슬라이딩 윈도우 7일 — 이전 사진은 cron 마다 prune
+- 슬라이딩 윈도우 7일 — `refresh-photos` cron 마다 prune
 - `SUPABASE_SERVICE_ROLE_KEY` 가 없으면 모든 미러 함수가 no-op (피처 플래그)
 - 학교당 동시 다운로드 5장 (`photoMirror.ts:CONCURRENCY`) + 다운로드 timeout 15초.
   Pro 한도 여유와 별개로 학교 서버 부담 완화 차원에서 유지.

@@ -26,7 +26,7 @@
 한 항목 등록으로 추가. 다른 파일은 건드리지 않는다.
 
 **학교 추가 후 반드시 cron 수동 실행** (Vercel Dashboard → Cron Jobs →
-`/api/cron/refresh` Run). 새 학교 미러 즉시 채우기 위함.
+`/api/cron/refresh-photos` Run). 새 학교 미러 즉시 채우기 위함.
 
 ## 기술 스택
 
@@ -70,17 +70,21 @@ CRON_SECRET=                                         # Vercel Cron 보호
 | `/api/week?schoolId=chonggye&ymd=20260422` | 주간 식단표 PNG (가정통신문용) |
 | `/api/feedback` | GET 목록 / POST 익명 등록 |
 | `/api/feedback/[id]/vote` | POST 추천 (fingerprint 중복 방지) |
-| `/api/cron/refresh` | 모든 학교 NEIS 워밍 + 미러 + prune (`CRON_SECRET` 보호) |
+| `/api/cron/refresh-neis` | 모든 학교 NEIS 메뉴 워밍 (`CRON_SECRET` 보호) |
+| `/api/cron/refresh-photos` | 모든 학교 사진 미러 + sliding window prune (`CRON_SECRET` 보호) |
 
 ## Vercel Cron
 
-`vercel.json` 에 하루 3회 예약:
+`vercel.json` 에 두 라우트로 분리 예약 (Stage 14-30):
 
-| KST | UTC | 목적 |
-|---|---|---|
-| 08:00 | 23:00 (전일) | NEIS 메뉴 확정 시점 |
-| 14:30 | 05:30 | 영양교사 사진 업로드 골든타임 (점심 후 1~2시) 직후 |
-| 17:00 | 08:00 | 하교 시점 마지막 미러 |
+| 라우트 | KST | UTC | 목적 |
+|---|---|---|---|
+| `refresh-neis` | 08:00 | 23:00 (전일) | 아침 NEIS 메뉴 확정 시점 |
+| `refresh-neis` | 14:30 | 05:30 | 점심 시점 메뉴 변경 흡수 |
+| `refresh-neis` | 17:00 | 08:00 | 하교 시점 메뉴 신선화 |
+| `refresh-photos` | 13:30 | 04:30 | 영양교사 1차 업로드 + 점심 트래픽 직전 |
+| `refresh-photos` | 16:00 | 07:00 | 메인 업로드 시간대 통과 후 보충 |
+| `refresh-photos` | 19:00 | 10:00 | 늦은 업로드 흡수 + 저녁 트래픽 직전 |
 
 ## PWA
 

@@ -2920,4 +2920,66 @@ UX reference 조사 결과 NEIS 3단 cascading 은 부모 인지도 낮아 채�
 회귀 위험: 즐겨찾기/홈 학교 / 검색·collapse / 공유 링크 모두 그대로. 빌드 통과.
 사용자 브라우저 검증 필요 (탭 전환·초성 검색·가나다순 확인).
 
+---
+
+## Stage 14-30 — cron 분리 (NEIS / 사진) — 전국 확장 토대 (2026-05-03)
+
+685교 production cron 두 회차 모두 504 (Stage 14-28 chunk 30 으로도 600s 한도
+초과). 한 invocation 안에 NEIS 워밍 + 학교 사이트 사진 fetch + Supabase 미러
+업로드까지 모두 학교당 직렬 처리 — chunk 축소만으로는 9배 부담 흡수 안 됨.
+
+전국 확장 (수천 학교) 시야에서 round-robin (한 회차 절반씩) 같은 패치성 처방
+대신 **구조적 분리 = NEIS cron + 사진 cron 두 라우트로 분할**.
+
+### 결정 (사용자 AskUserQuestion)
+
+- schedule: NEIS 3회 (08:00·14:30·17:00) + 사진 3회 (13:30·16:00·19:00)
+  - 사진은 영양교사 점심 후 1차 (13:30) → 메인 업로드 후 (16:00) →
+    늦은 업로드 보충 + 저녁 트래픽 직전 (19:00). 사용자 진입 시점마다
+    미러 hit 률 최대화.
+- 라우트: `/api/cron/refresh-neis` + `/api/cron/refresh-photos` (flat, 명시적)
+- 기존 `/api/cron/refresh` 제거 (vercel.json + route 파일)
+- prune (슬라이딩 윈도우 cleanup) 은 사진 cron 안 — NEIS 와 무관
+
+### 변경 파일
+
+- `src/app/api/cron/refresh-neis/route.ts` 신규
+  - 단일 Promise.all 685교 (open.neis.go.kr 한 host 라 chunk 무의미)
+  - maxDuration 300 (Pro 한도 800 안 마진 충분, 5000교 시점 재검토)
+  - `[cron-neis]` 로그: schools_total, ok_today, ok_tomorrow, errored, elapsedMs
+- `src/app/api/cron/refresh-photos/route.ts` 신규
+  - chunk 30 sequential (Stage 14-26~28 처방 그대로)
+  - scrape 없는 학교 (NEIS 전용 7교) 는 처음부터 list 제외
+  - prune 도 본 cron 안에서 수행
+  - maxDuration 600
+  - `[cron-photos]` 로그: mirror_buckets, total_photos_count, prune_count, elapsedMs
+- `src/app/api/cron/refresh/route.ts` 삭제
+- `vercel.json` crons: 3 entry → 6 entry (NEIS 3 + 사진 3)
+- README.md, AGENTS.md 의 cron 호출 가이드 갱신
+
+### 효과 추정
+
+- NEIS cron: 50~100s (단일 endpoint, 동시성 제한 없음)
+- 사진 cron: 280~400s (NEIS 분리로 외부 호출 절반, batch wall 짧아짐)
+- 둘 다 한도 안 안전 마진 확보. 학교 서버 outbound 도 이전 수준 유지
+  (NEIS·사진 시간대 분리로 학교 도메인 동시 부담 ↓)
+
+### 회귀 위험 / 후속 처방
+
+- NEIS rate limit 가능성 — 685 동시 호출이 첫 패턴. Rate limit 발생 시
+  단순 chunk 50~100 도입.
+- prune 누락 — 사진 cron 3회 다 실패하기 어렵고, 슬라이딩 윈도우는 며칠 늦어도
+  데이터 무결성 영향 0.
+- 1500교 시점 후속: 사진 cron region 별 분리 (서울/경기) 또는 chunk 25 축소.
+- 5000교+ 시점: per-school endpoint + fan-out / message queue 구조 검토.
+
+### 전국 확장 시야
+
+| 학교 수 | NEIS cron | 사진 cron |
+|---|---|---|
+| 685 (현재) | 단일 Promise.all 50~100s | chunk 30, 280~400s |
+| 1500 | 단일 Promise.all 100~200s | chunk 25 또는 region 분리 |
+| 3000 | chunk 100 도입 검토 | region 분리 (서울/경기/부산/...) |
+| 5000+ | per-region NEIS 분리 | per-region + queue/worker |
+
 
