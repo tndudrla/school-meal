@@ -244,6 +244,46 @@ lines.push(`- 사진 실패 ⬜: ${fail}교 (학교 미업로드 또는 외부 �
 if (noScrape > 0) lines.push(`- scrape 미지원 ➖: ${noScrape}교 (NEIS 메뉴만)`);
 lines.push('');
 
+// 수작업 확인 대상 — ⬜/➖ 만 한 곳에 모아 보기 (Stage 14-27, 2026-05-03)
+// 자치구 표 안에선 ✅ 사이에 ⬜ 가 흩어져 점검이 번거로움. 여기서 한 번에
+// 훑어 학교 사이트 직접 확인 → VERIFIED_REASONS 갱신 흐름.
+const failList = results.filter((r) => r.status === 'fail');
+const noScrapeList = results.filter((r) => r.status === 'no-scrape');
+if (failList.length > 0 || noScrapeList.length > 0) {
+  lines.push('## 수작업 확인 대상');
+  lines.push('');
+  lines.push('자치구 표 안 ⬜/➖ 만 한 곳에 모아 둠. 학교 사이트 직접 들어가 확인 후');
+  lines.push('`scripts/generate-school-status.mjs` 의 `VERIFIED_REASONS` 갱신 → 재실행.');
+  lines.push('');
+
+  if (failList.length > 0) {
+    lines.push(`### 사진 실패 ⬜ — ${failList.length}교`);
+    lines.push('');
+    lines.push('학교 미업로드, 외부 접근 차단, 다른 뷰어 등 원인 다양. 한 학교씩 확인.');
+    lines.push('');
+    lines.push('| id | 학교 | 자치구 | 비고 |');
+    lines.push('|---|---|---|---|');
+    for (const r of failList) {
+      lines.push(`| \`${r.id}\` | ${r.name} | ${r.region} | ${r.reason} |`);
+    }
+    lines.push('');
+  }
+
+  if (noScrapeList.length > 0) {
+    lines.push(`### scrape 미지원 ➖ — ${noScrapeList.length}교`);
+    lines.push('');
+    lines.push('NEIS 메뉴만 노출 (의도된 상태). 다른 시도/사립 도메인이라 sen-es / goeay 스크래퍼 무관.');
+    lines.push('필요 시 스크래퍼 추가 개발 후 `scrape` 필드 채우면 됨.');
+    lines.push('');
+    lines.push('| id | 학교 | 자치구 | 비고 |');
+    lines.push('|---|---|---|---|');
+    for (const r of noScrapeList) {
+      lines.push(`| \`${r.id}\` | ${r.name} | ${r.region} | ${r.reason} |`);
+    }
+    lines.push('');
+  }
+}
+
 // region 별 그룹
 lines.push('## 자치구별 현황');
 lines.push('');
