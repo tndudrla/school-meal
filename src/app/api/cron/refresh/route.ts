@@ -115,17 +115,16 @@ export async function GET(request: NextRequest) {
   // 685개로 폭주하면 학교 서버가 connection 거절 → 빈 weekMap → 미러 0건.
   // chunk 단위 sequential 로 학교 서버 부담 분산. chunk 안은 Promise.all.
   //
-  // chunk 35 (Stage 14-27 갱신, 2026-05-03):
-  //   이전 25 (Stage 14-26) → 첫 504 재발 (300초 한도). 두 가지 동시 처방:
-  //     1) maxDuration 300 → 600 (위)
-  //     2) fetchWeekPhotos 중복 제거 — cron→mirror 학교당 외부 호출 50% 절감
-  //   외부 호출이 절반이라 chunk 안 wall 도 절반이라 35 까지 늘려도 batch wall
-  //   ~12~15초 유지. 685 / 35 = 약 20 batch × 15초 = 300초 안에 들어옴 +
-  //   maxDuration 600 마진. 추가 504 발생 시 chunk 를 다시 줄이거나, NEIS 워밍
-  //   과 사진 미러 cron 을 분리 (refresh-neis / refresh-photos) 하는 것이 다음
-  //   처방 후보.
+  // chunk 30 (Stage 14-28 갱신, 2026-05-03):
+  //   Stage 14-27 (chunk 35 + maxDuration 600 + 중복 제거) 첫 production 회차에서
+  //   duration 588s / 600 한도 = 98% 사용. HTTP 200 으로 통과는 했으나 학교 서버
+  //   응답 변동성으로 다시 504 가능한 빠듯한 마진. 안전 마진 확보 위해 chunk 30
+  //   으로 축소.
+  //   685 / 30 = 약 23 batch × ~12~15초 ≈ 280~345초. 600 한도 안 더 여유.
+  //   다음 후보 (504 재발 시): timeout 15s→10s, cron 분리 (refresh-neis +
+  //   refresh-photos).
   const allSchools = listSchools();
-  const CHUNK = 35;
+  const CHUNK = 30;
   const perSchool: Array<Awaited<ReturnType<typeof processSchool>>> = [];
   for (let i = 0; i < allSchools.length; i += CHUNK) {
     const batch = allSchools.slice(i, i + CHUNK);
