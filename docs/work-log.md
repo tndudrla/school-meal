@@ -3279,4 +3279,39 @@ Stage 14-33 마무리. sen.es.kr 동시 60 부담은 그대로 남았으나 800s
 3. **chunk 30 → 25** — 학교 서버 동시 connection 30→25 로 친절도 ↑
 4. **per-school endpoint + queue/worker** — 5000교+ 시점 architecture 변경
 
+---
+
+## Stage 14-34 — Supabase / Vercel 인프라 매핑 정정 (2026-05-03)
+
+운영자가 Supabase Dashboard 에서 빈 org (`tndudrla's projects`) 를 정리하려다
+운영 데이터 손실 우려 발생. 점검 결과 **운영 데이터 안전** 확인됨. 다음에 같은
+혼동 재발 방지 위해 인프라 매핑 명시.
+
+### 인프라 매핑 (2026-05-03 기준)
+
+| 시스템 | Org / 위치 | 역할 | 비고 |
+|---|---|---|---|
+| **Vercel** | `tndudrla's projects` (Pro plan) | Next.js 앱 호스팅 + cron 4개 (NEIS / seoul-1 / seoul-2 / gyeonggi) | 운영 중 |
+| **Vercel Integration** | Vercel ↔ Supabase 연결 record | 환경변수 (URL, keys) 자동 주입 | `vercel.com/tndudrlas-projects/~/integrations/supabase/...` |
+| **Supabase** | `Shasha8202's Org` (Free plan) | 운영 project — `meal_photos` 테이블 + `meal-photos` Storage 버킷 | Reference ID `mmahzfgtcycacrbpcevm` (cron logs 의 supabase host 와 일치) |
+| **Supabase** | `tndudrla's projects` (Free plan) | **빈 org** — project 0 | 가입 시 자동 생성된 default org. 운영 무관. |
+
+### 핵심 확인 사항
+
+- Vercel 의 `tndudrla's projects` (Pro) 와 Supabase 의 `tndudrla's projects` (빈 org) 는
+  **이름만 우연히 같은 별개 시스템의 별개 계정**. 같은 org 가 아님.
+- Supabase 의 빈 `tndudrla's projects` 삭제는 운영 무관 — 안전. (실제 운영
+  project 는 Shasha8202's Org 안에 있음.)
+- Vercel ↔ Supabase 연결은 **Vercel 의 integration** 으로 관리됨. Vercel
+  화면의 빨간 "Delete Supabase" 버튼은 integration 자체 삭제 = 운영 즉시 정지
+  위험. **건드리지 말 것**.
+
+### 다음 운영자가 헷갈리지 않게 (체크포인트)
+
+- Supabase Dashboard 에서 운영 project 식별: **Shasha8202's Org → project 1개**
+- 그 project 의 Reference ID: `mmahzfgtcycacrbpcevm` (cron logs 와 SQL 호스트로 검증 가능)
+- Vercel Dashboard 의 "Supabase integration" 페이지는 환경변수 자동 주입 record.
+  하단 "Delete Supabase" 누르면 운영 끊김 → 절대 누르지 말 것
+- 운영 데이터 무결성 확인은 SQL 한 줄: `select count(*), count(distinct school_id) from meal_photos;`
+
 
