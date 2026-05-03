@@ -3114,4 +3114,62 @@ Stage 14-31 통합 서울 cron 의 504 처방. Stage 14-31 의 helper
 
 이번 stage 가 시·도 안 그룹 분할 패턴 도입. 1500교 시점 자연 추가 분할.
 
+### 결과 검증 (production 첫 회차, 2026-05-03 KST 19:24)
+
+- `refresh-photos-seoul-1`: HTTP **504**, **300초 정확히 한도** ❌ (304교)
+- `refresh-photos-seoul-2`: HTTP **504**, **300초 정확히 한도** ❌ (306교)
+- `refresh-photos-gyeonggi`: 미확인 (별도 확인 필요)
+
+진단:
+- 두 서울 cron 동시 trigger → sen.es.kr 도메인 동시 60 connection 부담
+  (각 cron chunk 30). 단일 도메인 누적 부담으로 학교당 wall time 두 배 증가
+  (예상 13~15s → 실제 25s+).
+- 304교 × 25s wall × 11 batch ≈ 275~280초 → maxDuration 300 한도 빠듯해 504.
+- 그룹 분할 자체는 OK 였으나 maxDuration 산정에 동시 부담 영향 미반영.
+
+처방 후속 = Stage 14-33 (maxDuration 300 → 800).
+
+---
+
+## Stage 14-33 — 서울 cron maxDuration 300 → 800 (2026-05-03)
+
+Stage 14-32 결과 두 서울 cron 동시 504. 마진 부족 처방으로 Pro plan 한도
+800s 까지 상향. 작은 변경 (route 파일 두 줄) 으로 즉시 효과.
+
+### 결정 (사용자 옵션 A 선택)
+
+옵션 A 만 적용 — `maxDuration 800` 단독. 옵션 B (schedule 시차) / C (자치구 4분할)
+는 보류. 먼저 한도 마진으로 통과 확인 후 필요 시 후속.
+
+### 변경 파일
+
+- `src/app/api/cron/refresh-photos-seoul-1/route.ts` — maxDuration 300 → 800
+- `src/app/api/cron/refresh-photos-seoul-2/route.ts` — maxDuration 300 → 800
+
+`gyeonggi` cron 은 변경 X (75교라 한도 부족 위험 0). 학교 데이터 / helper /
+vercel.json schedule 모두 변경 X.
+
+### 효과 추정
+
+| cron | 학교 수 | duration 예상 | maxDuration | 마진 |
+|---|---|---|---|---|
+| `refresh-photos-seoul-1` | 304교 | ~275~280s | **800s** | ~520s |
+| `refresh-photos-seoul-2` | 306교 | ~275~280s | **800s** | ~520s |
+| `refresh-photos-gyeonggi` | 75교 | ~30~50s | 300s | ~250s |
+
+학교 서버 변동성 큰 변동도 흡수. 1500교 시점에도 그룹별 600교까지는 마진 확보.
+
+### 회귀 위험
+
+- 변경 = export const maxDuration 값 한 줄 두 곳. risk 최소.
+- sen.es.kr 동시 60 부담 자체는 그대로 — 학교 서버 친절도 측면 개선 X. B
+  (시차) 후속 처방 가능.
+
+### 다음 후보 (504 재발 또는 친절도 우려 시)
+
+- 옵션 B: schedule 시차 (Seoul-1 13:30 / Seoul-2 13:35) — sen.es.kr 동시 부담
+  60 → 30 으로 분산
+- 옵션 C: 자치구 4분할 — 1500교 시점 처방 (지금은 과함)
+- chunk 30 → 25 — batch wall time 단축
+
 

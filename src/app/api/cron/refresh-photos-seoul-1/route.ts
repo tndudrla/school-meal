@@ -20,8 +20,12 @@ import { isSeoulGroup1 } from '@/lib/cron/seoulDistricts';
  * 과 같은 시각 parallel invocation.
  */
 
-// chunk 30 × ~11 batch × ~13~15초 ≈ 145~165s. Pro 한도 800 의 마진 큼.
-export const maxDuration = 300;
+// Stage 14-33 갱신 (2026-05-03): maxDuration 300 → 800.
+// 14-32 첫 회차에서 두 서울 cron 동시 trigger 로 sen.es.kr 동시 60 connection
+// 부담 (각 cron chunk 30) → 학교당 wall 5초+ 누적 → 300s 한도 초과 504.
+// Pro plan 800s 한도까지 끌어올려 학교 서버 변동성 흡수 마진 확보.
+// 304교 / chunk 30 / wall ~25s × 11 batch ≈ 275~280s. 800 마진 ~520s.
+export const maxDuration = 800;
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;

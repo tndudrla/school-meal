@@ -18,8 +18,10 @@ import { isSeoulGroup2 } from '@/lib/cron/seoulDistricts';
  * 과 같은 시각 parallel invocation.
  */
 
-// chunk 30 × ~11 batch × ~13~15초 ≈ 145~165s.
-export const maxDuration = 300;
+// Stage 14-33 갱신 (2026-05-03): maxDuration 300 → 800.
+// Seoul-1 과 동일 처방 — 두 cron 동시 trigger sen.es.kr 60 부담 흡수.
+// 306교 / chunk 30 / wall ~25s × 11 batch ≈ 275~280s. 800 마진 ~520s.
+export const maxDuration = 800;
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
