@@ -10,9 +10,11 @@ import {
 } from '@/lib/photoMirror';
 
 // Vercel Pro 플랜으로 업그레이드되어 maxDuration 한도가 800초까지 확장.
-// 76교 × 평균 3초면 4분 안에 충분히 끝남. 안전 여유로 300 명시.
-// (Stage 13-4: Hobby 60초에서 청크 분할/budget 가드/wall time 가드 다 제거.)
-export const maxDuration = 300;
+// 685교 시점 (2026-05-03, Stage 14-27): 300초로 504 timeout 재발 → 600 으로 상향.
+// 800 한도 안 안전 마진 200초. 사진 미러 + NEIS 워밍 동시 처리 + 학교 서버
+// 응답 변동성을 흡수해야 하는 wall time. 76교 시점 60초로도 충분했지만
+// 685교 = 약 9배 outbound 부담이라 그 비례로 늘림.
+export const maxDuration = 600;
 
 /**
  * 주기적으로 NEIS 메뉴 + 학교 홈페이지 사진을 미리 불러와 캐시를 데움.
@@ -78,12 +80,19 @@ export async function GET(request: NextRequest) {
 
     // 2. 학교 홈페이지 이번주 사진 캐싱 (스크래핑 가능한 학교만)
     // ymd 는 어제 기준 — 위 yesterdayYmd 주석 참고
+    //
+    // weekMap 재사용 (Stage 14-27, 2026-05-03):
+    //   여기서 받은 weekMap 을 mirrorWeekForSchool 에 그대로 주입한다. 이전엔
+    //   같은 학교에 대해 fetchWeekPhotos 를 2회 호출 (여기 + mirror 안) 해
+    //   학교 서버 outbound 가 685교 × 2 = 1370 회였음 → 300s 504 주범 중 하나.
+    //   주입으로 685 × 1 로 절감.
+    let weekMap: Record<string, string> | undefined;
     if (school.scrape) {
       try {
-        const photos = await fetchWeekPhotos(school.scrape, yesterdayYmd);
+        weekMap = await fetchWeekPhotos(school.scrape, yesterdayYmd);
         result.photos = {
-          count: Object.keys(photos).length,
-          ymds: Object.keys(photos),
+          count: Object.keys(weekMap).length,
+          ymds: Object.keys(weekMap),
         };
       } catch (err) {
         result.photosError = err instanceof Error ? err.message : String(err);
@@ -91,8 +100,11 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Supabase 미러 (키 있을 때만). 동일하게 어제 기준.
+    // weekMap 이 있으면 주입 — fetchWeekPhotos 재호출 없음. 없으면 (위에서 throw)
+    // 학교 자체가 사진 단계 실패 → mirror 도 의미 없으므로 스킵 안 하고 미러 측 fetch
+    // 시도해 별도 에러 분기 받도록 둠 (실제로는 같은 throw 가 또 잡힘).
     if (mirrorOn && school.scrape) {
-      result.mirror = await mirrorWeekForSchool(school, yesterdayYmd);
+      result.mirror = await mirrorWeekForSchool(school, yesterdayYmd, weekMap);
     }
 
     return result;
@@ -103,13 +115,17 @@ export async function GET(request: NextRequest) {
   // 685개로 폭주하면 학교 서버가 connection 거절 → 빈 weekMap → 미러 0건.
   // chunk 단위 sequential 로 학교 서버 부담 분산. chunk 안은 Promise.all.
   //
-  // chunk 크기 25 — 첫 시도 50 은 batch 당 ~50초 × 14 batch = 700초 ≈ 504.
-  // 25 면 batch ~25초 × 28 batch = 700초도 비슷해 보이지만 실제로는 batch
-  // 안 wall = 가장 느린 학교 시간 (sharp/upload 동시 25 부담은 50보다 작아
-  // 학교당 시간 자체가 줄어 batch wall ~10~15초). 28 batch × 12초 ≈ 250초.
-  // 너무 길면 chunk 더 줄이거나, 학교당 timeout 줄이는 추가 처방 필요.
+  // chunk 35 (Stage 14-27 갱신, 2026-05-03):
+  //   이전 25 (Stage 14-26) → 첫 504 재발 (300초 한도). 두 가지 동시 처방:
+  //     1) maxDuration 300 → 600 (위)
+  //     2) fetchWeekPhotos 중복 제거 — cron→mirror 학교당 외부 호출 50% 절감
+  //   외부 호출이 절반이라 chunk 안 wall 도 절반이라 35 까지 늘려도 batch wall
+  //   ~12~15초 유지. 685 / 35 = 약 20 batch × 15초 = 300초 안에 들어옴 +
+  //   maxDuration 600 마진. 추가 504 발생 시 chunk 를 다시 줄이거나, NEIS 워밍
+  //   과 사진 미러 cron 을 분리 (refresh-neis / refresh-photos) 하는 것이 다음
+  //   처방 후보.
   const allSchools = listSchools();
-  const CHUNK = 25;
+  const CHUNK = 35;
   const perSchool: Array<Awaited<ReturnType<typeof processSchool>>> = [];
   for (let i = 0; i < allSchools.length; i += CHUNK) {
     const batch = allSchools.slice(i, i + CHUNK);

@@ -2805,4 +2805,51 @@ kyunghee_es·seoul_yongdu (동대문 2교), seoul_myunjoong (중랑), seoul_miya
 
 다음 = main 머지 검토 (사용자 정책상 서울 다 끝난 뒤).
 
+---
+
+## Stage 14-26 — 685교 cron 504 1차 처방 (2026-05-03)
+
+서울 25구 + main 머지 후 Supabase 미러 폴더가 ~70교 (이전 76교 시점) 만 채워져
+신규 학교 미러가 비어 있는 사고 보고. 진단 endpoint `/api/debug/mirror` 와
+임시 cron 로그를 통해 단일 학교 호출은 정상 (sen-es 9.5초/3장, goeay 1.6초/3장)
+인데 685교 Promise.all 한 번에 실행하면 `fetch failed` 와 빈 weekMap 만 줄줄이
+나오는 것 확인. 학교 서버들이 동시 685 outbound 를 throttle 하는 게 원인.
+
+처방 (이번 stage):
+- cron route 의 학교 처리를 `Promise.all(685)` → chunk 25 sequential batch 로
+  변경. chunk 안만 병렬, chunk 끼리 await.
+- "두 주 합치기" 도 함께 도입했으나 batch 당 fetch 부담이 2배라 300초 wall
+  초과 → 504. 즉시 롤백, 한 주만 fetch 로 회귀.
+- 진단 endpoint 와 임시 로그는 유지 안 함 — 영구 [cron] stats 로그만 남김.
+
+남은 문제: chunk 25 + 한 주 fetch 도 1차 운영에서 또 504 (function 300s timeout).
+685교 시점에 cron route 자체가 한 invocation 으로 끝나기 어려움 → Stage 14-27.
+
+---
+
+## Stage 14-27 — 685교 cron 504 2차 처방 (2026-05-03)
+
+Stage 14-26 처방 후에도 production cron 이 첫 시도 504 (FUNCTION_INVOCATION_TIMEOUT,
+duration 300095ms). NEIS 호출이 504 시점에도 계속 진행 중 = chunk 26~28 batch 가
+처리 끝나지 못한 상태로 잘림.
+
+병목 분리 후 두 가지 처방 묶음 적용:
+- maxDuration 300 → 600. Vercel Pro 한도 800 안 안전 마진 200초.
+  76교 60s 처방 (Stage 13-4) 의 9배 부담을 그대로 비례 흡수.
+- `fetchWeekPhotos` 중복 제거. 이전엔 cron route 의 photos 단계와
+  `mirrorWeekForSchool` 안에서 같은 학교에 대해 두 번 호출 → 학교 서버 outbound
+  685×2 = 1370 회였음. cron route 가 받은 weekMap 을 mirror 함수에 optional
+  파라미터로 주입. 외부 호출 50% 절감 → batch 안 wall 도 약 50% 단축.
+- 위 두 처방으로 chunk 안 wall 이 절반 가까이 줄어 chunk 25 → 35 로 상향 가능.
+  685 / 35 = 약 20 batch × ~12~15초 ≈ 250~300초. 600초 한도 안에 안전 진입.
+
+다음 처방 후보 (이번 처방으로도 504 재발 시):
+- cron 분리 (`refresh-neis` + `refresh-photos`) — 함수 두 개로 wall time 분산.
+- 또는 NEIS 워밍을 학교 N교씩 라운드로빈 (한 회차당 일부만).
+
+회귀 위험: optional 파라미터 추가로 미러를 단독 호출하는 다른 경로 (현재 없음)
+에는 영향 없음. 600s 는 설정값만 변경. chunk 35 는 batch 내부 sharp/upload
+동시성이 늘어 메모리는 약간 증가하나 이전 50 (사고 직전) 도 메모리는 OK 였던
+점 (831MB / 2048MB 사용) 으로 보아 여유.
+
 

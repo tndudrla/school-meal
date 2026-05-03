@@ -82,10 +82,18 @@ export async function sha256Hex(buf: ArrayBuffer): Promise<string> {
  *   - 두 주 합치기 도입 시도 (initial Stage 14-26) → 685교 × 두 주 fetch 가
  *     300초 한도 초과로 504. 롤백. 일요일 시점 빈 결과는 다음 cron 회차
  *     (월요일 08:00 자동) 에서 새 주 페이지에 사진이 등록되며 자연 해결.
+ *
+ * weekMap 주입 (Stage 14-27, 2026-05-03):
+ *   - cron route 에서 photos 단계에 이미 fetchWeekPhotos 를 호출함.
+ *     같은 학교에 대해 두 번 호출하면 학교 서버 outbound 가 2배 → 685교 시점
+ *     300초 504 의 주범 중 하나. cron 에서 받은 weekMap 을 그대로 주입해
+ *     학교 서버 호출 50% 절감. 미러를 단독으로 호출하는 다른 경로(부재) 도
+ *     안전하게 유지하기 위해 optional 파라미터로 두고 미주입 시만 fetch.
  */
 export async function mirrorWeekForSchool(
   school: SchoolConfig,
-  todayYmd: string
+  todayYmd: string,
+  preFetchedWeekMap?: Record<string, string>
 ): Promise<MirrorResult> {
   const sb = getServiceRoleClient();
   if (!sb || !school.scrape) {
@@ -100,18 +108,22 @@ export async function mirrorWeekForSchool(
   }
 
   let weekMap: Record<string, string>;
-  try {
-    weekMap = await fetchWeekPhotos(school.scrape, todayYmd);
-  } catch (err) {
-    return {
-      schoolId: school.id,
-      enabled: true,
-      uploaded: 0,
-      skipped: 0,
-      failed: 0,
-      missing: 0,
-      error: err instanceof Error ? err.message : String(err),
-    };
+  if (preFetchedWeekMap) {
+    weekMap = preFetchedWeekMap;
+  } else {
+    try {
+      weekMap = await fetchWeekPhotos(school.scrape, todayYmd);
+    } catch (err) {
+      return {
+        schoolId: school.id,
+        enabled: true,
+        uploaded: 0,
+        skipped: 0,
+        failed: 0,
+        missing: 0,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
   }
 
   // 한 ymd 처리의 결과 분류 (병렬 reduce 용)
