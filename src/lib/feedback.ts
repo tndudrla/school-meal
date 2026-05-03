@@ -21,6 +21,10 @@ export interface FeedbackRow {
   body: string;
   created_at: string;
   vote_count: number;
+  /** 관리자 답변 (Stage 12-2). 없으면 null. */
+  admin_reply: string | null;
+  /** 관리자 답변 작성 시각. admin_reply 와 함께 박힘. */
+  admin_replied_at: string | null;
 }
 
 /** SUPABASE_SERVICE_ROLE_KEY 가 있어야 피드백 기능이 켜짐. */
@@ -34,7 +38,7 @@ export async function listFeedback(limit = 50): Promise<FeedbackRow[]> {
   if (!sb) return [];
   const { data, error } = await sb
     .from('feedback')
-    .select('id, body, created_at, vote_count')
+    .select('id, body, created_at, vote_count, admin_reply, admin_replied_at')
     .eq('hidden', false)
     .order('vote_count', { ascending: false })
     .order('created_at', { ascending: false })

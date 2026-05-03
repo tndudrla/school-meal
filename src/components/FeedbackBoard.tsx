@@ -7,6 +7,25 @@ interface FeedbackItem {
   body: string;
   created_at: string;
   vote_count: number;
+  /** 관리자 답변 (Stage 12-2). 없으면 null. */
+  admin_reply: string | null;
+  /** 관리자 답변 작성 시각. */
+  admin_replied_at: string | null;
+}
+
+/** ISO 시각 → "M월 D일" 또는 "YYYY-MM-DD" (1년 이상 차이). 사용자 노출용 짧은 표기. */
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  if (sameYear) {
+    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
 }
 
 const VOTED_KEY = 'votedFeedbackIds';
@@ -386,25 +405,47 @@ export default function FeedbackBoard() {
                     <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap break-words">
                       {it.body}
                     </p>
-                    {isMine && (
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <span className="text-[10px] text-orange-500/80 font-bold">
-                          내 글
-                        </span>
-                        <button
-                          onClick={() => startEdit(it)}
-                          className="text-[11px] text-stone-500 hover:text-orange-500"
-                          aria-label="수정"
-                        >
-                          ✏️ 수정
-                        </button>
-                        <button
-                          onClick={() => remove(it.id)}
-                          className="text-[11px] text-stone-500 hover:text-red-500"
-                          aria-label="삭제"
-                        >
-                          🗑️ 삭제
-                        </button>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <span className="text-[10px] text-stone-400">
+                        {formatDate(it.created_at)}
+                      </span>
+                      {isMine && (
+                        <>
+                          <span className="text-[10px] text-orange-500/80 font-bold">
+                            내 글
+                          </span>
+                          <button
+                            onClick={() => startEdit(it)}
+                            className="text-[11px] text-stone-500 hover:text-orange-500"
+                            aria-label="수정"
+                          >
+                            ✏️ 수정
+                          </button>
+                          <button
+                            onClick={() => remove(it.id)}
+                            className="text-[11px] text-stone-500 hover:text-red-500"
+                            aria-label="삭제"
+                          >
+                            🗑️ 삭제
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {it.admin_reply && (
+                      <div className="mt-2.5 p-2.5 bg-orange-50 border-l-4 border-orange-300 rounded-r-lg">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-xs font-bold text-orange-600">
+                            🍱 운영자 답변
+                          </span>
+                          {it.admin_replied_at && (
+                            <span className="text-[10px] text-stone-400">
+                              {formatDate(it.admin_replied_at)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-stone-700 leading-relaxed whitespace-pre-wrap break-words">
+                          {it.admin_reply}
+                        </p>
                       </div>
                     )}
                   </div>
