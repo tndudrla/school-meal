@@ -70,17 +70,18 @@ export async function sha256Hex(buf: ArrayBuffer): Promise<string> {
 
 /**
  * 한 학교의 sliding window 사진을 Supabase 에 미러.
- * - 윈도우 = 이번 주 (월~금) + 지난 주 (월~금) 두 페이지를 합쳐 8~12일 커버
+ * - 윈도우 = 이번 주 (월~금). cron 이 하루 3회 (08/14:30/17) 도는 동안 매번
+ *   같은 주를 채우고, 다음 주가 시작되면 자동으로 새 주 페이지를 받음.
  * - URL/해시 동일 시 다운로드 스킵 → 학교 서버 부담 ↓
  * - 다운로드 실패는 한 ymd 단위로 격리 (다른 ymd 계속 진행)
  *
- * 두 주 합치기 도입 배경 (Stage 14-26, 2026-05-03):
- *   기존 = fetchWeekPhotos(today) 한 번 = 그 주 월~금만. 일요일 cron 회차에
- *   이번 주 (월~금) 사진이 학교에 아직 등록 안 됐으면 미러 0건. 사용자 의도
- *   ("오늘 + 과거 7일치 sliding window") 와 어긋남.
- *   처방 = 이번 주 + 지난 주 두 번 fetch 후 merge. 이번 주가 비어 있어도
- *   지난 주 사진은 채워짐. cleanup cutoff (today-7일) 는 그대로라 8일 이전은
- *   매 회차 자동 삭제.
+ * 슬라이딩 윈도우 운영 (Stage 14-26 정리, 2026-05-03):
+ *   - cleanup cutoff = today - 7일. 즉 오늘 + 과거 7일치 (8일) 보존.
+ *   - cron 이 매 회차 새 ymd 사진을 그 주 페이지에서 받아 미러에 추가.
+ *   - 7일 이전 (다다음 주 진입 시 지난 주 사진) 자동 prune.
+ *   - 두 주 합치기 도입 시도 (initial Stage 14-26) → 685교 × 두 주 fetch 가
+ *     300초 한도 초과로 504. 롤백. 일요일 시점 빈 결과는 다음 cron 회차
+ *     (월요일 08:00 자동) 에서 새 주 페이지에 사진이 등록되며 자연 해결.
  */
 export async function mirrorWeekForSchool(
   school: SchoolConfig,
@@ -98,21 +99,10 @@ export async function mirrorWeekForSchool(
     };
   }
 
-  // 두 주 합치기 — 이번 주 페이지가 비어 있어도 지난 주 페이지에서 채워짐.
-  // 한 주가 throw 해도 다른 주 결과 살림.
-  const lastWeekYmd = ymdMinusDays(todayYmd, 7);
-  const [thisWeekRes, lastWeekRes] = await Promise.allSettled([
-    fetchWeekPhotos(school.scrape, todayYmd),
-    fetchWeekPhotos(school.scrape, lastWeekYmd),
-  ]);
-  const weekMap: Record<string, string> = {};
-  if (lastWeekRes.status === 'fulfilled') Object.assign(weekMap, lastWeekRes.value);
-  if (thisWeekRes.status === 'fulfilled') Object.assign(weekMap, thisWeekRes.value);
-  // 둘 다 실패면 error 보고
-  if (
-    thisWeekRes.status === 'rejected' &&
-    lastWeekRes.status === 'rejected'
-  ) {
+  let weekMap: Record<string, string>;
+  try {
+    weekMap = await fetchWeekPhotos(school.scrape, todayYmd);
+  } catch (err) {
     return {
       schoolId: school.id,
       enabled: true,
@@ -120,10 +110,7 @@ export async function mirrorWeekForSchool(
       skipped: 0,
       failed: 0,
       missing: 0,
-      error:
-        thisWeekRes.reason instanceof Error
-          ? thisWeekRes.reason.message
-          : String(thisWeekRes.reason),
+      error: err instanceof Error ? err.message : String(err),
     };
   }
 

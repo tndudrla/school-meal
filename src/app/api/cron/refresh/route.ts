@@ -102,9 +102,14 @@ export async function GET(request: NextRequest) {
   // 학교당 직접 outbound (학교 root, 캘린더, AJAX) + Supabase upload 가 동시
   // 685개로 폭주하면 학교 서버가 connection 거절 → 빈 weekMap → 미러 0건.
   // chunk 단위 sequential 로 학교 서버 부담 분산. chunk 안은 Promise.all.
-  // 50교 × 14 batch ≈ 170초 (single 평균 9~12초 기준), 300초 한도 여유.
+  //
+  // chunk 크기 25 — 첫 시도 50 은 batch 당 ~50초 × 14 batch = 700초 ≈ 504.
+  // 25 면 batch ~25초 × 28 batch = 700초도 비슷해 보이지만 실제로는 batch
+  // 안 wall = 가장 느린 학교 시간 (sharp/upload 동시 25 부담은 50보다 작아
+  // 학교당 시간 자체가 줄어 batch wall ~10~15초). 28 batch × 12초 ≈ 250초.
+  // 너무 길면 chunk 더 줄이거나, 학교당 timeout 줄이는 추가 처방 필요.
   const allSchools = listSchools();
-  const CHUNK = 50;
+  const CHUNK = 25;
   const perSchool: Array<Awaited<ReturnType<typeof processSchool>>> = [];
   for (let i = 0; i < allSchools.length; i += CHUNK) {
     const batch = allSchools.slice(i, i + CHUNK);
