@@ -3314,4 +3314,90 @@ Stage 14-33 마무리. sen.es.kr 동시 60 부담은 그대로 남았으나 800s
   하단 "Delete Supabase" 누르면 운영 끊김 → 절대 누르지 말 것
 - 운영 데이터 무결성 확인은 SQL 한 줄: `select count(*), count(distinct school_id) from meal_photos;`
 
+---
+
+## Stage 14-35 — 개발 건의 보드 메인 페이지 분리 (2026-08-03)
+
+### 목표 (북극성과의 연결)
+
+메인 페이지가 급식 정보 + 개발 건의 보드를 모두 담고 있어 스크롤 길이 증가 + 모바일에서 보드 내부 스크롤(max-h-420px 오버플로우) 이 페이지 스크롤을 가로채는 "스크롤 트랩" 문제 발생. 보드를 `/feedback` 전용 페이지로 분리하고, 메인에는 읽기 전용 프리뷰만 노출해 메인 페이지를 경량화하면서 완성도를 높인다.
+
+### 문제점
+
+1. **메인 페이지 길이** — 급식 정보 + 50건 고정 보드 = 모바일에서 스크롤 부담
+2. **모바일 스크롤 트랩** — `max-h-[420px] overflow-y-auto` 내부 스크롤이 페이지 스크롤을 가로챔
+3. **PWA 뒤로가기 불가** — 오버레이로 구현 시 안드로이드 PWA 백버튼이 오버레이를 닫는 게 아니라 앱 전체를 종료
+4. **정돈 부족** — 게시판 기능(정렬 탭·더보기·글 수 표시)이 조건 없이 나타나 UI 신호 혼란
+
+### 채택 옵션 및 기각 사유
+
+| 옵션 | 설명 | 기각 사유 |
+|---|---|---|
+| **A. 라우트 페이지 `/feedback` 분리 (채택)** | 전용 보드 페이지 + 메인에 프리뷰만 | — |
+| B. 풀스크린 오버레이 | 페이지 추가 없음 | PWA 안드로이드 백버튼이 앱을 종료 (결정적 하자) |
+| C. 현 보드 그대로 이식 | 최소 작업 | 스크롤 트랩·완성도 문제 미해결 |
+
+### 설계 원칙
+
+**정돈 = 요소 제거 + 조건부 노출** — 게시판에 추가되는 부품(정렬 탭·더보기·뱃지)은 데이터가 그것을 정당화할 때만 나타난다.
+
+- **정렬 탭**: 첫 로드 결과 `items.length >= 10` 일 때만 렌더 (10 미만이면 탭 미노출)
+- **더보기**: `hasMore: true` 일 때만 버튼 렌더 (offset 페이지네이션, limit 20)
+- **글 수 표시**: 도입 안 함 (활기 없음을 광고하는 역효과)
+- **답변완료 뱃지**: 보드에는 미노출 (`admin_reply` 블록이 이미 답변을 크게 표시), 프리뷰 전용
+
+### 인프라 결정
+
+1. **OG 기본값 신설**: layout.tsx 에 `openGraph` 블록 신설 (이전엔 page.tsx generateMetadata 에만 존재 → sibling 라우트에 상속 안 되는 구조)
+2. **`/feedback` 동적 렌더링**: `export const dynamic = 'force-dynamic'` 선언 필수 (process.env 접근이 정적 프리렌더링을 트리거하지 않으므로 명시 필요)
+3. **캐시 분기**: 프리뷰 요청만 `s-maxage=60` CDN 캐시 (메인 fetch 흡수), 나머지 GET 은 `no-store` 유지
+4. **API 응답 계약**: `GET /api/feedback` 응답에 `hasMore: boolean` 추가 (기존 items 동일, 하위 호환)
+
+### 변경 사항
+
+**파일 신규:**
+- `src/app/feedback/page.tsx` — 전용 보드 페이지, 서버 렌더링 + 피처 플래그 분기
+- `src/app/feedback/loading.tsx` — prefetch 스킵 시 로딩 피드백용 스켈레톤
+- `src/components/FeedbackPreview.tsx` — 메인에 표시될 읽기 전용 프리뷰 카드 (상위 2개 + 진입 버튼)
+
+**파일 수정:**
+- `src/app/layout.tsx` — 기본 `openGraph` 블록 신설
+- `src/components/MealView.tsx` — `FeedbackBoard` import/렌더 → `FeedbackPreview` 교체 (line 10, 263)
+- `src/components/FeedbackBoard.tsx` — `max-h-[420px] overflow-y-auto` 제거, 정렬 탭 조건부, 빈 상태 카드 개선
+- `src/app/api/feedback/route.ts` — 쿼리 파라미터 지원 (`sort`, `limit`, `offset`), `hasMore` 응답 추가
+- `src/lib/feedback.ts` — `listFeedback` 시그니처 변경 → `{ rows, hasMore }` 반환
+
+### 검증 포인트
+
+- `/feedback` 진입 시 전용 보드 페이지, 브라우저 뒤로가기로 메인 복귀 ✅
+- 메인 하단: 프리뷰(상위 최대 2개) + 진입 버튼만 — 전체 보드·입력 폼 소멸
+- 프리뷰 버튼 → `/feedback` 클라이언트 라우팅 (full reload 없음, `next/link` 도입)
+- 정렬 탭: 10개 미만이면 미노출, 이상이면 추천순↔최신순 전환 동작
+- 더보기: `hasMore` true 일 때만 노출, 20개 단위 append, 중복 항목 없음
+- 프리뷰: `admin_reply` 있는 항목에 답변완료 뱃지 표시
+- 글 0개: 정돈된 빈 상태 카드 렌더링
+- 작성·수정·삭제·추천·30초 cooldown 기존과 동일 (localStorage 3키 불변)
+- `SUPABASE_SERVICE_ROLE_KEY` 미설정: 프리뷰 완전 비표시(깜빡임 없음), `/feedback` 안내 카드
+- 무파라미터 `GET /api/feedback` 하위 호환 (items 동일, hasMore 추가만)
+- `/feedback` og:title = "개발 건의" (layout 기본값 '오늘의 급식' 아님)
+- 보드 스크롤: 내부 오버플로우 영역 제거 (페이지 스크롤만)
+
+### 의도적 트레이드오프
+
+- **프리뷰 캐시 60s** — 방금 쓴 내 글이 메인 프리뷰에 안 보일 수 있음. 의도된 수용 (보드 본체에는 즉시 반영되므로 작성 맥락에서 혼란 없음)
+- **offset 페이지네이션 누락 위험** — 추천 유입 시 정렬 순서가 바뀌어 항목 누락 가능. 수십 건 규모에서 실해악 미미, 정확한 서술로 기록
+
+### 후속 작업 (Follow-ups)
+
+1. 글이 늘어 정렬 탭·더보기가 실사용되기 시작하면 total count 표시 재검토
+2. 프리뷰 캐시 60s 가 체감되면 revalidate 조정
+3. 글 1000건 초과 시 `recent` 정렬용 인덱스 추가 (`create index feedback_created_at_desc on feedback (created_at desc) where hidden = false`)
+4. next.config 에 `cacheComponents` 도입 시 `force-dynamic` 선언이 무효화되어 피처 플래그가 빌드타임 고정 → 그때 재점검 필요
+
+### 설계 과정
+
+- **모호도 분석**: deep-interview (9.5% 모호도, PASSED)
+- **역할별 협의**: Planner/Architect/Critic 2회 반복 합의
+- **스펙 문서**: `.omc/specs/deep-interview-feedback-board.md`
+- **계획 문서**: `.omc/plans/feedback-board-separation.md` (이번 Stage 기반)
 

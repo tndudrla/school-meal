@@ -8,18 +8,50 @@ import {
 
 export const runtime = 'nodejs';
 
+const DEFAULT_LIMIT = 50;
+
+/** 인식 불가 값은 400 대신 기본값으로 폴백 — 오염값이 Supabase 까지 닿아 500 나는 경로 차단. */
+function parseListParams(searchParams: URLSearchParams): {
+  sort: 'top' | 'recent';
+  limit: number;
+  offset: number;
+} {
+  const rawSort = searchParams.get('sort');
+  const sort = rawSort === 'recent' ? 'recent' : 'top';
+
+  const rawLimit = parseInt(searchParams.get('limit') ?? '', 10);
+  const limit =
+    Number.isNaN(rawLimit) || rawLimit < 0
+      ? DEFAULT_LIMIT
+      : Math.min(Math.max(rawLimit, 1), 50);
+
+  const rawOffset = parseInt(searchParams.get('offset') ?? '', 10);
+  const offset = Number.isNaN(rawOffset) || rawOffset < 0 ? 0 : rawOffset;
+
+  return { sort, limit, offset };
+}
+
 // 피드백 기능 비활성 시 200 + 빈 items — 클라이언트가 섹션을 안 그리도록.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const { sort, limit, offset } = parseListParams(searchParams);
+
   if (!isFeedbackEnabled()) {
     return NextResponse.json(
-      { items: [], enabled: false },
+      { items: [], hasMore: false, enabled: false },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   }
-  const items = await listFeedback();
+
+  const { rows, hasMore } = await listFeedback({ sort, limit, offset });
+  // 프리뷰 요청(상위 소량 조회)만 CDN 캐시로 흡수 — 그 외 GET 은 기존과 동일하게 no-store.
+  const isPreviewRequest = limit <= 2 && offset === 0 && sort === 'top';
+  const cacheControl = isPreviewRequest
+    ? 's-maxage=60, stale-while-revalidate=300'
+    : 'no-store';
   return NextResponse.json(
-    { items, enabled: true },
-    { headers: { 'Cache-Control': 'no-store' } }
+    { items: rows, hasMore, enabled: true },
+    { headers: { 'Cache-Control': cacheControl } }
   );
 }
 

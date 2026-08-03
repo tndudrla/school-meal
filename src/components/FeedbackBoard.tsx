@@ -35,6 +35,10 @@ const COOLDOWN_MS = 30_000;
 
 const MIN_LEN = 5;
 const MAX_LEN = 500;
+const PAGE_LIMIT = 20;
+const TABS_MIN_ITEMS = 10;
+
+type SortMode = 'top' | 'recent';
 
 function readVotedSet(): Set<string> {
   if (typeof window === 'undefined') return new Set();
@@ -86,6 +90,10 @@ function writeTokens(map: Record<string, string>) {
 export default function FeedbackBoard() {
   const [items, setItems] = useState<FeedbackItem[] | null>(null);
   const [enabled, setEnabled] = useState(true);
+  const [sort, setSort] = useState<SortMode>('top');
+  const [showTabs, setShowTabs] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [body, setBody] = useState('');
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,7 +108,7 @@ export default function FeedbackBoard() {
   useEffect(() => {
     setVoted(readVotedSet());
     setTokens(readTokens());
-    refresh();
+    refresh('top');
     // 진행 중인 cooldown 복원
     const last = parseInt(
       window.localStorage.getItem(COOLDOWN_KEY) ?? '0',
@@ -117,16 +125,56 @@ export default function FeedbackBoard() {
     return () => clearTimeout(t);
   }, [cooldownLeft]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (sortMode: SortMode) => {
     try {
-      const res = await fetch('/api/feedback', { cache: 'no-store' });
+      const res = await fetch(
+        `/api/feedback?sort=${sortMode}&limit=${PAGE_LIMIT}&offset=0`,
+        { cache: 'no-store' }
+      );
       const data = await res.json();
-      setItems(data.items ?? []);
+      const nextItems: FeedbackItem[] = data.items ?? [];
+      setItems(nextItems);
       setEnabled(data.enabled !== false);
+      setHasMore(!!data.hasMore);
+      setShowTabs(nextItems.length >= TABS_MIN_ITEMS);
     } catch {
       setItems([]);
+      setHasMore(false);
     }
   }, []);
+
+  const changeSort = useCallback(
+    (nextSort: SortMode) => {
+      if (nextSort === sort) return;
+      setSort(nextSort);
+      setItems(null);
+      refresh(nextSort);
+    },
+    [sort, refresh]
+  );
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !items) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/feedback?sort=${sort}&limit=${PAGE_LIMIT}&offset=${items.length}`,
+        { cache: 'no-store' }
+      );
+      const data = await res.json();
+      const more: FeedbackItem[] = data.items ?? [];
+      setItems((prev) => {
+        const base = prev ?? [];
+        const existingIds = new Set(base.map((it) => it.id));
+        return [...base, ...more.filter((it) => !existingIds.has(it.id))];
+      });
+      setHasMore(!!data.hasMore);
+    } catch {
+      // 실패 시 조용히 무시 — 더보기 버튼은 그대로 남아 재시도 가능
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [sort, items, loadingMore]);
 
   const trimmed = body.trim();
   const tooShort = trimmed.length < MIN_LEN;
@@ -158,7 +206,7 @@ export default function FeedbackBoard() {
       const now = Date.now();
       window.localStorage.setItem(COOLDOWN_KEY, String(now));
       setCooldownLeft(Math.ceil(COOLDOWN_MS / 1000));
-      await refresh();
+      await refresh(sort);
     } catch {
       setError('저장에 실패했어요. 잠시 후 다시 시도해주세요');
     } finally {
@@ -332,6 +380,32 @@ export default function FeedbackBoard() {
         )}
       </div>
 
+      {/* 정렬 탭 — 첫 로드 결과 10개 이상일 때만 노출 */}
+      {showTabs && (
+        <div className="flex items-center gap-1.5 mb-3">
+          <button
+            onClick={() => changeSort('top')}
+            className={`text-xs px-3 py-1 rounded-full font-bold transition-colors ${
+              sort === 'top'
+                ? 'bg-orange-500 text-white'
+                : 'bg-white text-stone-500 border border-amber-200'
+            }`}
+          >
+            추천순
+          </button>
+          <button
+            onClick={() => changeSort('recent')}
+            className={`text-xs px-3 py-1 rounded-full font-bold transition-colors ${
+              sort === 'recent'
+                ? 'bg-orange-500 text-white'
+                : 'bg-white text-stone-500 border border-amber-200'
+            }`}
+          >
+            최신순
+          </button>
+        </div>
+      )}
+
       {/* 목록 */}
       {items === null ? (
         <div className="flex flex-col gap-2 mt-3">
@@ -343,11 +417,14 @@ export default function FeedbackBoard() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="text-xs text-stone-500 text-center py-4">
-          첫 의견을 남겨주세요!
-        </p>
+        <div className="flex flex-col items-center gap-1.5 py-6 text-center">
+          <span className="text-2xl">💬</span>
+          <p className="text-xs text-stone-500">
+            아직 의견이 없어요. 첫 의견을 남겨주세요!
+          </p>
+        </div>
       ) : (
-        <ul className="flex flex-col gap-2 max-h-[420px] overflow-y-auto pr-1">
+        <ul className="flex flex-col gap-2">
           {items.map((it) => {
             const hasVoted = voted.has(it.id);
             const isMine = !!tokens[it.id];
@@ -454,6 +531,19 @@ export default function FeedbackBoard() {
             );
           })}
         </ul>
+      )}
+
+      {/* 더보기 — hasMore 일 때만 */}
+      {items !== null && items.length > 0 && hasMore && (
+        <div className="flex justify-center mt-3">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="text-xs px-4 py-1.5 rounded-full bg-white border border-amber-200 text-stone-600 font-bold hover:bg-amber-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {loadingMore ? '불러오는 중...' : '더보기'}
+          </button>
+        </div>
       )}
 
       {/* 안내 — 한 줄. localStorage 한계 */}

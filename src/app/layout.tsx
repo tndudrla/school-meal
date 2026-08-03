@@ -21,6 +21,16 @@ export const metadata: Metadata = {
     title: '오늘의 급식',
     statusBarStyle: 'default',
   },
+  // 사이트 기본 OG — page.tsx 의 무인자 분기(generateMetadata)와 동일 값.
+  // 학교별 페이지는 자체 generateMetadata 가 이 값을 덮으므로 기존 동작 유지.
+  openGraph: {
+    title: '오늘의 급식',
+    description: '학교 급식 메뉴와 사진을 한눈에',
+    type: 'website',
+    locale: 'ko_KR',
+    siteName: '오늘의 급식',
+    images: [{ url: '/api/og', width: 1200, height: 630, alt: '오늘의 급식' }],
+  },
 };
 
 // Next.js 14+ 부터 themeColor 는 metadata 가 아니라 viewport 로 분리됨.

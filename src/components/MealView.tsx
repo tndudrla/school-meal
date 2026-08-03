@@ -7,7 +7,7 @@ import SchoolSwitcher from '@/components/SchoolSwitcher';
 import WeekExportButton from '@/components/WeekExportButton';
 import InstallPrompt from '@/components/InstallPrompt';
 import SharedLinkBanner from '@/components/SharedLinkBanner';
-import FeedbackBoard from '@/components/FeedbackBoard';
+import FeedbackPreview from '@/components/FeedbackPreview';
 import {
   getWeekDatesByOffset,
   getDefaultDate,
@@ -260,7 +260,7 @@ export default function MealView({ initialYmd, schoolId }: Props) {
 
       <InstallPrompt />
 
-      <FeedbackBoard />
+      <FeedbackPreview />
 
       <footer className="mx-5 mt-8 mb-4 flex flex-col items-center gap-2 text-xs text-stone-500">
         <div className="flex items-center justify-center gap-4">

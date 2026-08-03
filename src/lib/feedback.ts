@@ -32,22 +32,41 @@ export function isFeedbackEnabled(): boolean {
   return !!process.env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
-/** 공개 리스트 — 추천 많은 순, 동률 시 최근 순. */
-export async function listFeedback(limit = 50): Promise<FeedbackRow[]> {
+interface ListFeedbackOptions {
+  /** 'top' = 추천 많은 순(동률 시 최근 순), 'recent' = 최신 순. 기본 'top'. */
+  sort?: 'top' | 'recent';
+  limit?: number;
+  offset?: number;
+}
+
+/** 공개 리스트. sort='top' 은 추천 많은 순(동률 시 최근 순), 'recent' 는 최신 순. */
+export async function listFeedback(
+  opts: ListFeedbackOptions = {}
+): Promise<{ rows: FeedbackRow[]; hasMore: boolean }> {
+  const { sort = 'top', limit = 50, offset = 0 } = opts;
   const sb = getAnonClient();
-  if (!sb) return [];
-  const { data, error } = await sb
+  if (!sb) return { rows: [], hasMore: false };
+
+  let query = sb
     .from('feedback')
     .select('id, body, created_at, vote_count, admin_reply, admin_replied_at')
-    .eq('hidden', false)
-    .order('vote_count', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .eq('hidden', false);
+  if (sort === 'recent') {
+    query = query.order('created_at', { ascending: false });
+  } else {
+    query = query
+      .order('vote_count', { ascending: false })
+      .order('created_at', { ascending: false });
+  }
+  // limit+1 로 조회해 다음 페이지 존재 여부(hasMore) 를 판정 — 여분 1건은 rows 에서 잘라냄.
+  const { data, error } = await query.range(offset, offset + limit);
   if (error) {
     console.error('listFeedback failed', error);
-    return [];
+    return { rows: [], hasMore: false };
   }
-  return (data ?? []) as FeedbackRow[];
+  const all = (data ?? []) as FeedbackRow[];
+  const hasMore = all.length > limit;
+  return { rows: all.slice(0, limit), hasMore };
 }
 
 interface CreateInput {
