@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -46,3 +49,6 @@ next-env.d.ts
 *.scratch.*
 KakaoTalk_*.jpg
 KakaoTalk_*.png
+
+.vercel
+.env*
