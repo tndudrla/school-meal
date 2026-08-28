@@ -3401,3 +3401,46 @@ Stage 14-33 마무리. sen.es.kr 동시 60 부담은 그대로 남았으나 800s
 - **스펙 문서**: `.omc/specs/deep-interview-feedback-board.md`
 - **계획 문서**: `.omc/plans/feedback-board-separation.md` (이번 Stage 기반)
 
+
+---
+
+## Stage 14-36 — NEIS 급식 메뉴 `null` 캐시 사고 기록 (2026-08-28)
+
+### 현상
+
+청계초 학교 홈페이지와 NEIS 원본에는 2026-08-28 중식이 존재했지만 운영
+`/api/meal?schoolId=chonggye&ymd=20260828`은 장시간 `{"meal":null}`을 반환했다.
+경기·서울 대표 학교도 같은 시각 동일 증상이었다.
+
+### 조사 결과
+
+- 청계초 NEIS 코드 `J10 / 7569109` 정상
+- NEIS 원본 단건 요청은 메뉴 6개와 536.3 Kcal 정상 반환
+- NEIS 인증키 발급 상태 및 Vercel Production 변수 등록 확인
+- 18:41 첫 사용자 요청은 stale `null`, 약 36초 뒤 서버 요청은 정상 meal 반환
+- 직후 경기·서울 대표 4개교 모두 정상화
+
+`src/lib/neis.ts`가 정상 무자료와 `ERROR-*` provider 오류를 모두 `null`로 축약하고,
+검증 전 raw 응답을 `revalidate: 3600` fetch cache에 저장하는 구조가 핵심 위험이다.
+또한 `refresh-neis`가 685개교 × 오늘·내일 약 1,370건을 하나의 `Promise.all`로
+동시 호출하므로 NEIS 제한 응답이 대량 cache 오염으로 이어졌을 가능성이 가장 높다.
+당시 provider 오류 코드를 기록하지 않아 정확한 NEIS 오류 코드는 사후 확정할 수 없다.
+
+### 복구
+
+별도 코드 배포 없이 time-based stale revalidation 이후 자동 복구됐다. 2026-08-28
+18:42 KST 기준 청계초·과천초·서울개원초·서울상명초 모두 정상 메뉴를 반환했다.
+
+### 후속 처방
+
+1. 정상 무자료와 인증·쿼터·provider 오류 분리
+2. raw NEIS fetch는 `no-store`, 검증된 결과만 cache
+3. provider 오류와 사진 `null` 응답의 장기 cache 금지
+4. `refresh-neis`를 50~100개 학교 chunk로 전환
+5. cron에 provider 오류 코드별 집계와 실패 임계치 추가
+6. 정상/무자료/인증/쿼터 응답 회귀 테스트 추가
+7. 화면에 노출된 NEIS 인증키 재발급·교체
+
+상세 타임라인, 증거, 운영 체크리스트는
+[`docs/incidents/stage14-36-neis-menu-stale-cache.md`](incidents/stage14-36-neis-menu-stale-cache.md)에 기록했다.
+이번 Stage는 운영 조사·복구 확인·문서화만 포함하며 재발 방지 코드는 후속 작업이다.
