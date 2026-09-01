@@ -1,6 +1,13 @@
 /**
  * 경기도교육청 (J10) 75교 — 과천·의왕·안양·군포.
  * Stage 14-2 (2026-05-02) 에서 단일 schools.ts 에서 분리.
+ *
+ * ⚠️ 이 파일과 같은 이름의 `gyeonggi/` 디렉터리 (수원 등 시별 파일) 가 나란히
+ * 존재하는 것은 의도된 구조다 (Stage 15, 옵션 A-1). tsc bundler 해석에서
+ * `./gyeonggi` 는 이 파일이 디렉터리보다 우선한다.
+ * **`gyeonggi/index.ts` 를 만들지 말 것** — 만들면 `./gyeonggi` 해석이 뒤집혀
+ * 이 75교 import 가 조용히 바뀔 수 있다. 전면 디렉터리 전환 (옵션 A-2) 은
+ * 경기 다음 시·군 추가 시점의 후속 Stage 로 미룸.
  */
 
 import type { SchoolConfig } from './index';

@@ -5,6 +5,7 @@
  *
  * 디렉터리 구조:
  *   gyeonggi.ts          — 경기 75교 (과천·의왕·안양·군포)
+ *   gyeonggi/suwon.ts    — 경기 수원시 102교 (Stage 15, suwon_ prefix, 1교 scrape 생략)
  *   seoul/seocho.ts      — 서울 서초구 24교
  *   seoul/dongjak.ts     — 서울 동작구 (Stage 14-2)
  *   seoul/gangnam.ts     — 서울 강남구 34교 (Stage 14-4)
@@ -37,6 +38,7 @@
 
 import type { SchoolScrape } from '../schoolScraper';
 import { GYEONGGI_SCHOOLS } from './gyeonggi';
+import { SUWON_SCHOOLS } from './gyeonggi/suwon';
 import { SEOCHO_SCHOOLS } from './seoul/seocho';
 import { DONGJAK_SCHOOLS } from './seoul/dongjak';
 import { GWANAK_SCHOOLS } from './seoul/gwanak';
@@ -85,6 +87,7 @@ export interface SchoolConfig {
 
 export const SCHOOLS: Record<string, SchoolConfig> = {
   ...GYEONGGI_SCHOOLS,
+  ...SUWON_SCHOOLS,
   ...SEOCHO_SCHOOLS,
   ...DONGJAK_SCHOOLS,
   ...GWANAK_SCHOOLS,

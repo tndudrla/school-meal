@@ -28,9 +28,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Settings → Cron Jobs → 추가한 학교의 region 에 맞는 사진 cron 의 `Run` 버튼):
 - 서울 강남권 (강남·강동·강서·관악·구로·금천·동작·서초·송파·양천·영등포)
   학교 추가 → `/api/cron/refresh-photos-seoul-1`
-- 서울 강북권 (강북·광진·노원·도봉·동대문·마포·서대문·성동·성북·용산·은평·종로·중·중랑)
+- 서울 강북권 (강북·광진·노원·도봉·동대문·마포·서대문·성동·성북·용산·은평·종로·중구·중랑)
   학교 추가 → `/api/cron/refresh-photos-seoul-2`
-- 경기 학교 추가 → `/api/cron/refresh-photos-gyeonggi`
+- 경기 4도시 (과천·의왕·안양·군포 — 수원 제외 경기 전체) 학교 추가 →
+  `/api/cron/refresh-photos-gyeonggi`
+- 수원시 학교 추가 → `/api/cron/refresh-photos-suwon`
 
 새 학교의 미러를 즉시 채워, 사용자가 진입했을 때 학교 홈페이지 직접 호출이
 일어나지 않게 함. NEIS 메뉴만 신선화하면 되는 경우는 `/api/cron/refresh-neis`
@@ -63,19 +65,26 @@ Run.
 
 ### 사진 cron schedule (region·그룹 별 분리)
 
-세 사진 cron 모두 KST 13:30 / 16:00 / 19:00 동일 schedule. 영양교사 점심 후
+네 사진 cron 모두 KST 13:30 / 16:00 / 19:00 동일 schedule. 영양교사 점심 후
 1차 업로드 (13:30) → 메인 업로드 후 (16:00) → 늦은 업로드 보충 + 저녁
-트래픽 직전 (19:00). 세 함수가 같은 시각 parallel invocation:
+트래픽 직전 (19:00). 네 함수가 같은 시각 parallel invocation (도메인이 서로
+달라 학교 서버 부담 합산 없음):
 
 - `refresh-photos-seoul-1` — 강남권 11구 (304교)
 - `refresh-photos-seoul-2` — 강북권 14구 (306교)
 - `refresh-photos-gyeonggi` — 경기 4도시 (75교)
+- `refresh-photos-suwon` — 수원 (102교, Stage 15)
+
+경기 그룹(수원 / 나머지)은 `src/lib/cron/gyeonggiGroups.ts` 에서 관리한다
+(서울의 `seoulDistricts.ts` 와 대칭. 단 경기는 열린 집합이라 allowlist 가
+아니라 여집합 술어 — 새 경기 시·군은 자동으로 기존 경기 cron 에 포함).
 
 ### 미러 파이프라인의 운영 제약
 
-- Vercel Pro 800s 함수 한도 — 세 사진 cron 모두 maxDuration 300 (chunk 30
-  sequential, 서울 그룹별 ~145~165s 예상, 경기 ~30~50s 예상)
-- 공통 핵심 로직 = `src/lib/cron/photoCronImpl.ts` 의 `runPhotoCron()`. 세
+- Vercel Pro 800s 함수 한도 — 네 사진 cron 모두 maxDuration 800 (Stage 14-33
+  서울 / Stage 15 경기·수원. chunk 30 sequential, 서울 그룹별 실측 341s/385s,
+  경기 ~30~50s, 수원 ~120s 예상)
+- 공통 핵심 로직 = `src/lib/cron/photoCronImpl.ts` 의 `runPhotoCron()`. 네
   라우트가 region filter (그룹별 / 시·도별) 만 다름. 새 시·도/그룹 추가 시
   라우트 한 줄.
 - 서울 자치구 그룹은 `src/lib/cron/seoulDistricts.ts` 의 `SEOUL_GROUP_1` /

@@ -12,7 +12,10 @@
     { "path": "/api/cron/refresh-photos-seoul-2", "schedule": "0 10 * * *" },
     { "path": "/api/cron/refresh-photos-gyeonggi", "schedule": "30 4 * * *" },
     { "path": "/api/cron/refresh-photos-gyeonggi", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/refresh-photos-gyeonggi", "schedule": "0 10 * * *" }
+    { "path": "/api/cron/refresh-photos-gyeonggi", "schedule": "0 10 * * *" },
+    { "path": "/api/cron/refresh-photos-suwon", "schedule": "30 4 * * *" },
+    { "path": "/api/cron/refresh-photos-suwon", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/refresh-photos-suwon", "schedule": "0 10 * * *" }
   ]
 }
 

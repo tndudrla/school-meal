@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listSchools } from '@/lib/schools';
 import { runPhotoCron } from '@/lib/cron/photoCronImpl';
+import { isGyeonggiRest } from '@/lib/cron/gyeonggiGroups';
 
 /**
  * 경기 사진 미러 cron — Stage 14-31 (2026-05-03) region 분리.
@@ -15,8 +16,12 @@ import { runPhotoCron } from '@/lib/cron/photoCronImpl';
  * schedule: KST 13:30 / 16:00 / 19:00 (서울과 동일).
  */
 
-// 경기 chunk 30 × ~3 batch ≈ 30~50초. Pro 한도 800 의 마진 큼.
-export const maxDuration = 300;
+// Stage 15 정정 (2026-09-02): maxDuration 300 → 800.
+// 서울 두 cron 은 Stage 14-33 에서 800 으로 올렸는데 경기만 누락돼 있었다.
+// work-log "안 할 것" 목록의 "보수적 300/600 시작 금지" 조항 — 학교 서버
+// 변동성 + 동시 trigger 부담 흡수 마진은 Pro 한도 끝까지 확보한다.
+// 4도시 75교 chunk 30 × ~3 batch ≈ 30~50초라 실사용 마진은 여전히 큼.
+export const maxDuration = 800;
 
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -27,9 +32,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // region 이 '경기 ' 로 시작하는 학교만 (경기 4도시).
-  // region prefix 컨벤션은 src/lib/schools/gyeonggi.ts 모두 일관 (확인됨).
-  const schools = listSchools().filter((s) => s.region.startsWith('경기 '));
+  // Stage 15: 수원 제외 여집합 술어로 축소. 수원 102교는 goesw.kr 단일
+  // 도메인이라 전용 cron (refresh-photos-suwon) 이 담당. startsWith('경기 ')
+  // 를 유지하면 177교를 이 함수가 삼켜 wall time 폭증 (504 재현 경로).
+  // 술어 관리는 src/lib/cron/gyeonggiGroups.ts — 새 경기 시·군은 자동 포함.
+  const schools = listSchools().filter((s) => isGyeonggiRest(s.region));
   const result = await runPhotoCron({
     schools,
     label: 'gyeonggi',
