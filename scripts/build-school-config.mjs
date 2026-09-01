@@ -35,7 +35,7 @@ const FETCH_TIMEOUT_MS = 15000;
 // ----- 인자 파싱 ------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { mode: null, value: null, atpt: DEFAULT_ATPT };
+  const args = { mode: null, value: null, atpt: DEFAULT_ATPT, idPrefix: '' };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--names') {
@@ -46,6 +46,8 @@ function parseArgs(argv) {
       args.value = argv[++i];
     } else if (a === '--atpt') {
       args.atpt = (argv[++i] ?? '').toUpperCase();
+    } else if (a === '--id-prefix') {
+      args.idPrefix = argv[++i] ?? '';
     } else if (a === '-h' || a === '--help') {
       printHelpAndExit(0);
     }
@@ -68,6 +70,8 @@ function printHelpAndExit(code) {
       예: --city 의왕시. NEIS_API_KEY 환경변수 필요 (키 없으면 종료).
 
   --atpt <코드>  시도교육청 코드. 미지정 시 J10 (경기). 예: B10 서울, C10 부산.
+  --id-prefix <s>  자동 생성 id 앞에 붙일 접두. 미지정 시 없음 (기존 동작).
+                   예: --id-prefix suwon_ → suwon_gosaek (Stage 15 시별 네임스페이스)
 `);
   process.exit(code);
 }
@@ -92,12 +96,17 @@ async function fetchWithTimeout(url, init = {}) {
  * "경기도 의왕시 ..." → "경기 의왕"
  * "서울특별시 서초구 ..." → "서울 서초"
  * 다른 광역시·도도 같은 패턴으로 처리.
+ *
+ * 접미가 생략된 주소도 허용 (Stage 15): 수원 영통초·송죽초의 ORG_RDNMA 가
+ * "경기 수원시 ..." 로 등록돼 있어 (NEIS 데이터 품질 편차) 접미 필수 정규식이
+ * region '' 을 내던 버그 수정. 접미 optional 이어도 lazy 매치가 "경기도" 를
+ * "경기"+도 로 정확히 쪼개므로 기존 주소 출력은 불변.
  */
 function regionFromAddress(addr) {
   if (!addr) return '';
   // 도/특별시/광역시/자치시 접미 제거 + 시/구/군 단위 한 단어 추출
   const m = addr.match(
-    /^([가-힣]+?)(?:특별시|광역시|특별자치시|특별자치도|도)\s+([가-힣]+?)(?:시|구|군)/
+    /^([가-힣]+?)(?:특별시|광역시|특별자치시|특별자치도|도)?\s+([가-힣]+?)(?:시|구|군)/
   );
   if (m) return `${m[1]} ${m[2]}`;
   return '';
@@ -118,6 +127,7 @@ function hostFromHmpg(raw) {
  * 관찰된 패턴:
  *   - *-e.goeay.kr (경기 안양/과천 등)
  *   - *.goegu.kr  (경기 의왕/군포 등)
+ *   - *-e.goesw.kr (경기 수원 — Stage 15. goeay 와 동일 CMS, 파서 호환 실측 완료)
  *   - *.sen.es.kr (서울 초등) — sysId 자리는 학교 약칭 (seocho, banpo 등)
  *
  * sen.es.kr 의 sysId 는 mi 추출 단계 (selectFoodMenuView.do) 에서 어차피
@@ -125,12 +135,23 @@ function hostFromHmpg(raw) {
  */
 function sysIdFromHost(host) {
   if (!host) return null;
-  // 경기 패턴
-  const ggn = host.match(/^([a-z0-9-]+)\.(goeay|goegu)\.kr$/i);
+  // 경기 패턴 (goeay/goegu/goesw — 같은 CMS 계열, kind: 'goeay' 파서 공유)
+  const ggn = host.match(/^([a-z0-9-]+)\.(goeay|goegu|goesw)\.kr$/i);
   if (ggn) return ggn[1];
   // 서울 sen.es.kr 패턴 (예: seocho.sen.es.kr → seocho)
   const senEs = host.match(/^([a-z0-9-]+)\.sen\.es\.kr$/i);
   if (senEs) return senEs[1];
+  return null;
+}
+
+/**
+ * host → schoolScraper.ts 의 scrape.kind 값 (Stage 15, F-2 버그 수정).
+ * 이 스크립트가 kind 도입 (Stage 14-1) 이전 버전이라 출력에 kind 가 없어
+ * 그대로 붙이면 TS union (SchoolScrape) 불만족 → 컴파일 에러가 났다.
+ */
+function kindFromHost(host) {
+  if (/\.(goeay|goegu|goesw)\.kr$/i.test(host)) return 'goeay';
+  if (/\.sen\.es\.kr$/i.test(host)) return 'sen-es';
   return null;
 }
 
@@ -258,7 +279,8 @@ async function fetchMiFromMain(host, sysId) {
 
 // ----- 학교 1개를 SchoolConfig 객체로 -------------------------------------
 
-async function buildOne(neisRow, used, atpt = DEFAULT_ATPT) {
+// prefetchedMi: mi 프리페치 결과 ({ mi, reason }) — 미전달 시 직접 fetch (기존 동작)
+async function buildOne(neisRow, used, atpt = DEFAULT_ATPT, idPrefix = '', prefetchedMi) {
   const name = neisRow.SCHUL_NM;
   const schoolCode = neisRow.SD_SCHUL_CODE;
   const addr = neisRow.ORG_RDNMA;
@@ -271,8 +293,8 @@ async function buildOne(neisRow, used, atpt = DEFAULT_ATPT) {
     return { skip: true, name, reason: `초등학교 아님 (${neisRow.SCHUL_KND_SC_NM})` };
   }
 
-  // id 자동 — 충돌 방지
-  let id = sysId ? idFromSysId(sysId) : neisRow.SCHUL_NM;
+  // id 자동 — 충돌 방지. --id-prefix 는 접두만 붙일 뿐 충돌 회피 로직은 동일
+  let id = idPrefix + (sysId ? idFromSysId(sysId) : neisRow.SCHUL_NM);
   if (used.has(id)) {
     let i = 2;
     while (used.has(`${id}-${i}`)) i++;
@@ -307,7 +329,7 @@ async function buildOne(neisRow, used, atpt = DEFAULT_ATPT) {
     };
   }
 
-  const { mi, reason } = await fetchMiFromMain(host, sysId);
+  const { mi, reason } = prefetchedMi ?? (await fetchMiFromMain(host, sysId));
   if (!mi) {
     return {
       skip: false,
@@ -318,9 +340,44 @@ async function buildOne(neisRow, used, atpt = DEFAULT_ATPT) {
 
   return {
     skip: false,
-    config: { ...base, scrape: { host, sysId, mi } },
+    config: { ...base, scrape: { kind: kindFromHost(host), host, sysId, mi } },
     warning: null,
   };
+}
+
+// ----- mi 프리페치 (동시성 5 워커 풀) ----------------------------------------
+//
+// Stage 15 (F-4): 기존 완전 sequential (학교당 timeout 15s → 101교 최악 25분)
+// 을 동시성 5 로 개선. photoMirror.ts 의 CONCURRENCY = 5 와 같은 보수값 —
+// 학교 서버 예의 차원에서 요청 간 200ms 간격도 둔다.
+// 출력 순서·id 배정은 main 루프가 원본 행 순서로 sequential 하게 수행하므로
+// 프리페치 도입 전과 stdout 이 동일하다 (--names 회귀 검증 근거).
+
+const MI_CONCURRENCY = 5;
+const MI_GAP_MS = 200;
+
+async function prefetchMis(neisRows) {
+  const targets = [];
+  neisRows.forEach((row, idx) => {
+    if (row.SCHUL_KND_SC_NM && row.SCHUL_KND_SC_NM !== '초등학교') return;
+    const host = hostFromHmpg(row.HMPG_ADRES);
+    const sysId = host ? sysIdFromHost(host) : null;
+    if (!host || !sysId) return;
+    if (/\.sen\.es\.kr$/i.test(host)) return; // buildOne 이 mi fetch 전에 조기 반환하는 케이스
+    targets.push({ idx, host, sysId });
+  });
+  const results = new Map();
+  let cursor = 0;
+  async function worker() {
+    while (cursor < targets.length) {
+      const t = targets[cursor++];
+      results.set(t.idx, await fetchMiFromMain(t.host, t.sysId));
+      await new Promise((r) => setTimeout(r, MI_GAP_MS));
+    }
+  }
+  const n = Math.min(MI_CONCURRENCY, targets.length);
+  await Promise.all(Array.from({ length: n }, worker));
+  return results;
 }
 
 // ----- 출력 형식 ------------------------------------------------------------
@@ -337,8 +394,9 @@ function emitSchoolConfig(c) {
     `    neis: { atptCode: '${c.neis.atptCode}', schoolCode: '${c.neis.schoolCode}' },`
   );
   if (c.scrape) {
+    // kind 를 맨 앞에 — 기존 등록 파일 (gyeonggi.ts 등) 의 필드 순서와 동일
     lines.push(
-      `    scrape: { host: '${c.scrape.host}', sysId: '${c.scrape.sysId}', mi: '${c.scrape.mi}' },`
+      `    scrape: { kind: '${c.scrape.kind}', host: '${c.scrape.host}', sysId: '${c.scrape.sysId}', mi: '${c.scrape.mi}' },`
     );
   }
   lines.push(`  },`);
@@ -391,8 +449,11 @@ async function main() {
   let withScrape = 0;
   let skipped = 0;
 
-  for (const row of neisRows) {
-    const result = await buildOne(row, used, args.atpt);
+  // mi 는 동시성 5 로 프리페치, id 배정·출력은 원본 순서 sequential 유지
+  const mis = await prefetchMis(neisRows);
+
+  for (const [idx, row] of neisRows.entries()) {
+    const result = await buildOne(row, used, args.atpt, args.idPrefix, mis.get(idx));
     if (result.skip) {
       console.error(`[skip] ${result.name} — ${result.reason}`);
       skipped++;
