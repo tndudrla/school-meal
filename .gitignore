@@ -52,3 +52,9 @@ KakaoTalk_*.png
 
 .vercel
 .env*
+
+# OMC / OMX — 세션 상태·런타임은 머신 로컬 (계획·스펙 문서만 공유)
+.omc/state/
+.omc/sessions/
+.omc/project-memory.json
+.omx/
