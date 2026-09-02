@@ -142,12 +142,17 @@ async function probeMonth(schoolId, ymd) {
   const tries = [];
   const monthStart = new Date(y, m, 1);
   const monthEnd = new Date(y, m + 1, 0); // m+1월 0일 = m월 말일
+  // 오늘 이후 ymd 는 스킵 (Stage 15) — 미래 날짜는 사진이 있을 수 없는데
+  // probe 마다 미러 miss → 학교 직접 fetch 가 나가 787교 × 잔여 평일만큼
+  // 무의미한 학교 서버 요청이 쌓인다 (진행 중인 달을 기준일로 쓸 때 문제).
+  const today = new Date();
+  const todayYmd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
   for (let d = monthStart; d <= monthEnd; d.setDate(d.getDate() + 1)) {
     const dow = d.getDay();
     if (dow === 0 || dow === 6) continue; // 주말 제외
-    tries.push(
-      `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
-    );
+    const t = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    if (t > todayYmd) continue;
+    tries.push(t);
   }
   // 역순 — 최근 주부터 (대부분 학교는 최근 사진 있어 빨리 종료)
   tries.reverse();
@@ -191,6 +196,7 @@ const regionOrder = [
   '경기 의왕',
   '경기 안양',
   '경기 군포',
+  '경기 수원', // Stage 15 (F-8) — 미등재 시 서울 뒤 문서 맨 끝으로 밀림
   '서울 서초',
   '서울 동작',
   '서울 관악',

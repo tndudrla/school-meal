@@ -3254,6 +3254,7 @@ Stage 14-33 마무리. sen.es.kr 동시 60 부담은 그대로 남았으나 800s
 |---|---|---|---|
 | 서울 | `*.sen.es.kr` 단일 | **높음** | ≤300/그룹 |
 | 경기 | `*.goeay.kr` + `*.goegu.kr` 두 갈래 | 중간 | ≤500/그룹 |
+| 경기 수원 | `*-e.goesw.kr` 단일 | **높음** | 101교 단일 cron (Stage 15 실측 90s — 안정) |
 | 인천 | `*.ice.go.kr` (예상) | **높음** | ≤300/그룹 |
 | 부산 | `*.pen.go.kr` (예상) | **높음** | ≤300/그룹 |
 | 다른 시·도 | 미확인 | 시·도별 도메인 패턴 사전 조사 필수 | - |
@@ -3444,3 +3445,115 @@ Stage 14-33 마무리. sen.es.kr 동시 60 부담은 그대로 남았으나 800s
 상세 타임라인, 증거, 운영 체크리스트는
 [`docs/incidents/stage14-36-neis-menu-stale-cache.md`](incidents/stage14-36-neis-menu-stale-cache.md)에 기록했다.
 이번 Stage는 운영 조사·복구 확인·문서화만 포함하며 재발 방지 코드는 후속 작업이다.
+
+---
+
+## Stage 15 — 경기 수원시 초등학교 102교 추가 (2026-09-02)
+
+계획 `.omc/plans/suwon-expansion-stage15.md` (Planner/Architect/Critic 3라운드
+합의, Critic APPROVED) / 스펙 `.omc/specs/deep-interview-suwon-expansion.md`
+(모호도 7%). 등록 685 → **787교** (권선 34 / 영통 30 / 장안 22 / 팔달 16).
+
+### 핵심 사실
+
+- **`goesw.kr` = 세 번째 경기 도메인.** 수원 101교 전원 `*-e.goesw.kr` 단일
+  인프라 (예외 1교 중앙기독초, 사립 `www.suwoncca.org`). 도메인 위험도 표
+  기준 "높음" 등급.
+- **`kind: 'goeay'` 파서 호환 실측 완료** — `gosaek-e.goesw.kr` (mi=1315),
+  thead 7 / 중식행 td 7 파싱, 3개 주에서 2·3·5장 추출. `schoolScraper.ts`
+  무수정.
+- id 는 `suwon_<host subdomain -e 제거>`. 약칭 host 13개는 학교명 발음 기반
+  수동 확정 (suwon.ts 주석에 매핑 표, 사용자 육안 대조 승인). 중앙기독초는
+  sysId 없음 → 수동 `suwon_cca` (방치 시 한글 id → getSchool() 폴백으로
+  과천 청계초가 조용히 표시되는 함정, F-14).
+- **mi 추출 실패 2교** (율전초 `yuljeon-e`, 황곡초 `hgok-e`) → scrape 생략,
+  후속 보정 대상. `M`(scrape 보유) = 99. 목록: `docs/suwon-mi-failures.md`.
+
+### cron 구조 — 수원 전용 분리
+
+- `refresh-photos-suwon` 신설 (`maxDuration 800`, `runPrune: false`, KST
+  13:30/16:00/19:00 — 기존 세 cron 과 동일 schedule. 도메인이 달라 동시
+  trigger 부담 합산 없음).
+- 기존 `refresh-photos-gyeonggi` 는 `isGyeonggiRest` 로 4도시 75교 축소 +
+  maxDuration 300 → **800 정정** (Stage 14-33 서울 조치의 경기 누락분).
+- 술어 모듈 `src/lib/cron/gyeonggiGroups.ts`: `isSuwon` / `isGyeonggiRest`.
+  **여집합 구현** — 경기는 열린 집합이라 allowlist 면 다음 시·군이 어느
+  cron 에도 안 속하는 조용한 사고 (서울 allowlist 와 정반대 선택인 이유).
+- 분리 근거는 wall time 이 아니라 **미검증 인프라 격리 관측 + 폭발 반경
+  분리**. 177교는 경기 권장 상한 500 의 35% 라 통합(D-1)도 기술적으로
+  안전했다. **다음 시·군은 통합이 기본값** — 격리 단위는 행정구역이 아니라
+  도메인 (goeay/goegu 공유 시·군을 시별 cron 으로 쪼개면 같은 도메인에
+  chunk 30 × N 동시 = Stage 14-32 재현).
+- 학교 등록 + cron 분할은 **원자 커밋 1개** (`00fd5c0`) — 분리 배포 시
+  기존 `startsWith('경기 ')` 가 수원까지 삼켜 177교/300s → 504 재현 경로.
+  롤백도 `git revert` 1회.
+
+### 수집 스크립트 일반화 (F-1/F-2 실버그 수정)
+
+- `build-school-config.mjs`: goesw 패턴 추가 (F-1 — 미지원 시 101교 전원
+  조용히 scrape 생략), **`kind` 출력 누락 수정** (F-2 — Stage 14-1 이전
+  버전이라 출력 그대로 붙이면 TS 에러), `--id-prefix`, mi 동시성 5 (101교
+  25분 → 8.4s), regionFromAddress 접미 optional (영통초·송죽초 NEIS 주소가
+  "경기도" 아닌 "경기 " — region '' 버그).
+- `extract-seoul-hosts.mjs`: `--atpt` 인자화 (기본 B10 → 기존 호출 무영향).
+- `--names` 회귀: 청계초/내동초/동북초 3교 출력 byte 동일 확인.
+
+### 🔴 동반 발견 1 — 서울 중구 11교 cron 고아 (4개월, 수정 완료)
+
+AC-17 고아 검출기 (`/api/dev/cron-coverage`, 실제 술어 import) **첫 실행에서
+기존 프로덕션 버그 발견**: `SEOUL_GROUP_2` 의 `'중'` 이 `jung.ts` 의 region
+`'서울 중구'` (slice 결과 `'중구'`) 와 불일치 → **Stage 14-32 (5월) 이후
+중구 11교가 어느 사진 cron 에도 안 돌았다.** 앱의 학교 직접 폴백이 증상을
+가려 조용히 묻힘 (미러 miss → 매 진입마다 학교 서버 직접 호출 상태였음).
+`'중구'` 로 정정. **새 region/술어 추가 시 이 검출기 실행 필수** (dev 서버
+에서 `curl localhost:3000/api/dev/cron-coverage`, orphans/overlaps 빈 배열
+확인). 주석 (seoulDistricts.ts 의 "합이 일치해야 함") 은 사람에게만
+작동한다는 교훈의 실증.
+
+### 🔴 동반 발견 2 — refresh-neis DNS 전면 실패 (기존 사고, 후속 필요)
+
+Step 0 기준선 측정에서 `refresh-neis` 가 **이미 전멸 상태**임을 확인:
+`getaddrinfo EBUSY open.neis.go.kr`, errored 684~685/685 (연속 회차 동일).
+685교 × 2 = 1,370 동시 요청의 DNS 폭주 — Stage 14-36 이 예고한 패턴.
+수원 추가 후 787교 (1,574 동시) 에서도 동일 (errored 786, 8.4s, 200).
+단건 조회는 정상 (V-5 에서 메뉴 API 전 표본 통과) 이라 사용자 영향은
+"cron 워밍 무효 → 첫 진입만 느림" 수준. **후속 Stage: chunk 50~100 도입
+필수** (Stage 14-36 처방 4번 그대로). 이번 Stage 롤백 사유 아님 (R-12).
+
+### 운영 실측 (2026-09-02 아침 회차)
+
+| cron | HTTP | schools | elapsed | mirror_buckets |
+|---|---|---|---|---|
+| suwon (첫 실행) | 200 | 99 (=M) | **89.9s** (800 대비 마진 710s) | uploaded_some **77** / empty 22 / errored 0, photos 168 |
+| gyeonggi (배포 전 기준선) | 200 | 75 | 58.3s | uploaded_some 2 / empty 73 / errored 0 (아침이라 신규 업로드 적음) |
+| gyeonggi (배포 후) | 200 | 75 (suwon_ 0건, 과천6/의왕15/안양41/군포13) | 56.8s | — 필터 축소 회귀 없음 |
+| neis (배포 후) | 200 | **787** | 8.4s | errored 786 (위 동반 발견 2) |
+
+- AC-11 대조 판정: 수원 77/99 (77.8%) ≫ 대조군 경기 2/75 (2.7%) × 0.5 — 통과.
+  첫 미러링이라 이번 주 과거 사진이 전부 신규 업로드로 잡혀 높게 나온 것.
+- Vercel Dashboard cron 15건 (suwon 3건 UTC 4:30/7:00/10:00) 등록 확인, stale 없음.
+- V-5 표본: 고색(실측 검증 학교)·광교·다솔 = 미러 사진 ✅ / 남창 = origin 폴백
+  사진 ✅ / 중앙기독·율전·황곡 = 메뉴만 (기대값) ✅.
+
+### 기타
+
+- `gyeonggi.ts` 파일 + `gyeonggi/` 디렉터리 동명 공존은 의도 (옵션 A-1, tsc
+  bundler 실증). **`gyeonggi/index.ts` 생성 금지** (양쪽 파일 방어 주석).
+  전면 디렉터리 전환 (A-2) 은 다음 경기 시·군 추가 시점.
+- `/api/dev/cron-coverage` 는 **삭제하지 않고 유지** — 새 region 추가 시
+  실행하는 상비 게이트 (읽기 전용 집계라 프로덕션 노출 무해).
+- `generate-school-status.mjs`: regionOrder 에 '경기 수원' (F-8) + 미래 ymd
+  probe 스킵 (진행 중인 달 기준 시 787교 × 잔여 평일만큼 학교 직접 요청이
+  나가던 낭비 차단).
+- school-status 9월 기준 재생성 (등록 787 / OK 133 / FAIL 644 / no-scrape 10).
+  **FAIL 644 는 능력 부재가 아니라 측정 창 한계** — 신학기 2일차 아침이라
+  9/1~2 이틀만 probe 됐고 다수 학교가 아직 미업로드. 4월 기준 654/685 OK 와
+  비교 불가. 9월 말 전체 재생성 필요 (Follow-up 5).
+
+### 후속 (Follow-ups)
+
+1. **refresh-neis chunk 도입** (동반 발견 2 — 최우선. 이미 전멸 상태)
+2. 율전초·황곡초 mi 수동 보정 (`docs/suwon-mi-failures.md`)
+3. goesw.kr 수 주 안정 관측 후 수원 cron 경기 통합 재흡수 검토 (ADR 1-b)
+4. 경기 다음 시·군 추가 시 `gyeonggi/` 전면 전환 (A-2)
+5. 9월 말 school-status 전체 재생성 (신학기 2일차 스냅샷 교체 — 위 참조)
